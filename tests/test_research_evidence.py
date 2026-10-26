@@ -20,7 +20,11 @@ EXPECTED_REPORTS = {
     "agentmemory-static.md",
     "yuxi-static.md",
 }
-SUPPORTING_EVIDENCE = {"20261026-upstream-head-refresh.md"}
+SUPPORTING_EVIDENCE = {
+    "20261026-upstream-head-refresh.md",
+    "20261026-agent-research-dispatch.md",
+}
+DISPATCH_REPORT = "20261026-agent-research-dispatch.md"
 MAX_REPORT_BYTES = 64_000
 SECRET_MARKERS = (
     re.compile(r"sk-[A-Za-z0-9]{20,}"),
@@ -69,6 +73,41 @@ class ResearchEvidenceTests(unittest.TestCase):
             for marker in SECRET_MARKERS:
                 self.assertIsNone(marker.search(text), name)
             self.assertEqual(hashlib.sha256(raw).hexdigest(), hashlib.sha256(text.encode("utf-8")).hexdigest(), name)
+
+    def test_dispatch_record_has_explicit_privacy_and_size_guards(self) -> None:
+        path = REPORT_ROOT / DISPATCH_REPORT
+        raw = path.read_bytes()
+        text = raw.decode("utf-8")
+        self.assertGreater(len(raw), 0)
+        self.assertLessEqual(len(raw), MAX_REPORT_BYTES)
+        self.assertNotIn("AGENT_MAIL_REGISTRATION_TOKEN", text)
+        for marker in SECRET_MARKERS:
+            self.assertIsNone(marker.search(text))
+
+    def test_dispatch_record_enforces_authority_and_read_only_research(self) -> None:
+        text = " ".join((REPORT_ROOT / DISPATCH_REPORT).read_text(encoding="utf-8").split()).lower()
+        required_contracts = (
+            "/linuxdata/Github/DeepHarness-RSI",
+            "only authoring location",
+            "working backup-of-record",
+            "read-only research inputs",
+            "No candidate checkout may be repaired, restored, staged, or pushed",
+            "committed Git objects only",
+            "dirty worktrees are not repaired or silently treated as clean",
+            "No origin push is authorized",
+        )
+        for contract in required_contracts:
+            self.assertIn(contract.lower(), text, contract)
+
+    def test_dispatch_record_preserves_operator_gated_execution_boundaries(self) -> None:
+        text = " ".join((REPORT_ROOT / DISPATCH_REPORT).read_text(encoding="utf-8").split()).lower()
+        required_boundaries = (
+            "pushes from the parent repository's personal `origin` remain operator-gated",
+            "no cleanup or destructive recovery is allowed",
+            "before any implementation or promotion decision",
+        )
+        for boundary in required_boundaries:
+            self.assertIn(boundary, text, boundary)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,9 @@ production compatibility.
 - Upstream HEAD observations are recorded separately in
   `20261026-upstream-head-refresh.md`; they do not change the analyzed
   revisions or authorize a pull into a dirty research checkout.
+- The current bounded delegation record is
+  `20261026-agent-research-dispatch.md`; it records local read-only research
+  lanes and is not itself a research conclusion.
 
 The parent repository is the only authoring location for DeepHarness-RSI.
 Research clones remain read-only inputs. Pushes to the personal `origin`
