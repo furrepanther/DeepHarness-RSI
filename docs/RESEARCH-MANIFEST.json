@@ -1,15 +1,17 @@
 {
   "schema": "deepharness-rsi-research-manifest-v1",
-  "observed_at_utc": "2026-10-26T09:05:39Z",
+  "observed_at_utc": "2026-10-26T17:33:05Z",
   "purpose": "Pinned provenance for the requested harness research set",
   "research_only": true,
   "runtime_promotion": false,
+  "repository_report_root": "docs/research",
+  "online_head_refresh": "docs/research/20261026-upstream-head-refresh.md",
   "entries": [
     {
       "requested": "bytedance/deer-flow",
       "url": "https://github.com/bytedance/deer-flow.git",
       "analyzed_local_commit": "8f9409bccc0fbcb995864f0e66375dbbb52f7fa7",
-      "observed_online_head": "370da43119d4e12a63ac2c8816cf5ae562a1d76c",
+      "observed_online_head": "f7d02a75151e2cdb8222805124d430b815e53e35",
       "license": "MIT",
       "decision": "adapt"
     },
@@ -26,7 +28,7 @@
       "requested": "ruvnet/ruflo",
       "url": "https://github.com/ruvnet/ruflo.git",
       "analyzed_local_commit": "0396c4c20457340e006b50f023598874c6e7a5f8",
-      "observed_online_head": "631c1557b5f325163c4f9f029a397bb30a61c730",
+      "observed_online_head": "29b9894d4e02f862691f48c7fde099afae97ee20",
       "license": "MIT",
       "decision": "adapt_patterns_only",
       "evidence_note": "Static Git-object report; upstream refresh lane hit a shallow-fetch error"
@@ -43,7 +45,7 @@
       "requested": "langchain-ai/deepagents",
       "url": "https://github.com/langchain-ai/deepagents.git",
       "analyzed_local_commit": "2fe80c74637d33ad16f7215b93ede675759bfeae",
-      "observed_online_head": "1daa89e9f9c33d186026d0d6884f4aec5b153512",
+      "observed_online_head": "ebd7592723b5989d155ee94b9ff7df9ac2afe425",
       "license": "MIT",
       "decision": "adapt_patterns_only"
     },
@@ -59,7 +61,7 @@
       "requested": "rohitg00/agentmemory",
       "url": "https://github.com/rohitg00/agentmemory.git",
       "analyzed_local_commit": "1c995081c45dd465877c4f6ecbf313490baa8820",
-      "observed_online_head": "fa1171d282225ae198cb1d79e4388f5292413fb5",
+      "observed_online_head": "c5b8ebfb32eb6a08fe301d3bb75840f3597b66c8",
       "license": "Apache-2.0",
       "decision": "adapt_patterns_only"
     },
@@ -67,7 +69,7 @@
       "requested": "xerrors/Yuxi",
       "url": "https://github.com/xerrors/Yuxi.git",
       "analyzed_local_commit": "1d66405280631d30c8dd006703d9f270606d45a1",
-      "observed_online_head": "a5ac16dd11fd2eed7381960f7130321782eea206",
+      "observed_online_head": "5decec647561da5dfc9e4d03868686be491a48e1",
       "license": "MIT",
       "decision": "adapt_patterns_only"
     }

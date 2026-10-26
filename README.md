@@ -72,6 +72,9 @@ The durable research and design record is organized as follows:
   adopt/adapt/reject decisions and the synthesized baseline.
 - [`docs/RESEARCH-MANIFEST.json`](docs/RESEARCH-MANIFEST.json) - pinned source
   provenance for the requested harness research set.
+- [`docs/research/`](docs/research/) - bounded, public-safe evidence snapshots
+  and the 2026-10-26 upstream-head refresh; these are read-only research
+  inputs, not runtime dependencies.
 - [`docs/IMPLEMENTATION-ROADMAP.md`](docs/IMPLEMENTATION-ROADMAP.md) - gated
   implementation sequence and empty-boat acceptance criteria.
 - [`docs/PROVENANCE.md`](docs/PROVENANCE.md) - code lineage, backup policy,

@@ -32,6 +32,8 @@ tokens, prompts, hidden reasoning, raw logs, or private host configuration.
   `docs/RESEARCH-DECISIONS.md`;
 - the pinned source and license provenance in
   `docs/RESEARCH-MANIFEST.json`; and
+- the bounded, public-safe source-analysis snapshots and upstream-head
+  observation in `docs/research/`; and
 - the gated implementation sequence in `docs/IMPLEMENTATION-ROADMAP.md`.
 
 The repository currently contains design and research artifacts, not a claim
