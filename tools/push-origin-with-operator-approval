@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+canonical_root='/linuxdata/Github/DeepHarness-RSI'
+approval_phrase='PUSH DEEPHARNESS-RSI TO ORIGIN'
+
+die() {
+  printf 'refusing origin push: %s\n' "$1" >&2
+  exit 2
+}
+
+[[ $# -eq 1 && $1 == "$approval_phrase" ]] || \
+  die "an explicit operator approval phrase is required"
+[[ -t 0 && -t 1 ]] || \
+  die "interactive operator confirmation is required"
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || \
+  die "not inside a Git worktree"
+[[ "$repo_root" == "$canonical_root" ]] || \
+  die "worktree is not the canonical DeepHarness-RSI checkout"
+
+origin_url="$(git remote get-url origin 2>/dev/null)" || \
+  die "origin remote is unavailable"
+[[ "$origin_url" == 'https://github.com/furrepanther/DeepHarness-RSI.git' ]] || \
+  die "origin is not the personal DeepHarness-RSI repository"
+
+[[ -z "$(git status --porcelain)" ]] || \
+  die "worktree has uncommitted changes"
+branch="$(git branch --show-current)"
+[[ -n "$branch" ]] || die "detached HEAD is not pushable"
+
+printf 'Type %s to authorize pushing branch %s to origin: ' "$approval_phrase" "$branch"
+IFS= read -r typed_phrase
+[[ "$typed_phrase" == "$approval_phrase" ]] || \
+  die "operator confirmation did not match"
+
+exec git push origin "$branch"
