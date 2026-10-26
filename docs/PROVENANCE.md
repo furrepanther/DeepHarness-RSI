@@ -12,9 +12,10 @@ tokens, prompts, hidden reasoning, raw logs, or private host configuration.
 - The local checkout of that repository is the canonical working copy for
   those files. Changes are committed locally first; a push to the personal
   `origin` remote is a separate operator-controlled backup/release action.
-- All implementation work for this harness is conducted in this checkout or
-  its personal-fork worktree. Production trees and upstream research clones
-  are inputs or deployment targets, not alternate authoring locations.
+- All implementation work for this harness is conducted in the local
+  `/linuxdata/Github/DeepHarness-RSI` checkout. Production trees and upstream
+  research clones are inputs or deployment targets, not alternate authoring
+  locations for harness changes.
 - The personal `furrepanther/deepseek-harness` fork remains the backup and
   source lineage for the initial DeepSeek substrate. It is not silently
   replaced by an upstream checkout and is not modified through this repository
@@ -40,8 +41,9 @@ in this provenance file or a linked release record.
 
 ## Backup procedure
 
-1. Keep edits in the personal fork or this personal repository; never edit an
-   upstream research repository for local needs.
+1. Keep all DeepHarness-RSI edits in the local
+   `/linuxdata/Github/DeepHarness-RSI` checkout; never edit an upstream
+   research repository or another clone as an alternate harness worktree.
 2. Review the exact diff and preserve unrelated dirty work. Do not use a hard
    reset or force overwrite to make a checkout appear clean.
 3. Run the repository's applicable tests and the local adversarial review
@@ -49,7 +51,8 @@ in this provenance file or a linked release record.
 4. Commit durable source and findings with a specific message.
 5. Push the commit to the personal GitHub `origin` only after the operator
    explicitly requests or approves that push, then verify the remote commit
-   ID. The push is the cloud backup proof.
+   ID. Editing, committing, testing, and review never authorize an automatic
+   push. The push is the cloud backup proof.
 6. For release-worthy code, add a signed or otherwise verified tag and a
    checksum manifest after the review gate is empty-boat.
 

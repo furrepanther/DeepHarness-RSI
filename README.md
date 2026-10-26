@@ -51,9 +51,12 @@ packets, raw model output, credentials, runtime telemetry, and host-specific
 secrets do not belong here.
 
 All DeepHarness-RSI implementation work is to be performed in this local
-repository (or its personal fork worktree) and reviewed here before any
-production integration. Origin pushes are an explicit operator-controlled
-backup/release action, not an automatic side effect of editing.
+`/linuxdata/Github/DeepHarness-RSI` checkout. The other cloned repositories
+are research or source-lineage inputs, not alternate authoring locations for
+the harness. Changes are reviewed here before production integration. Origin
+pushes are an explicit operator-controlled backup/release action and require
+the operator's direct request or approval; editing, committing, testing, or
+reviewing must never push automatically.
 
 The current implementation substrate remains the separate personal
 `furrepanther/deepseek-harness` fork. It is tracked as code lineage rather
