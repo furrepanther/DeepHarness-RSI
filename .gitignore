@@ -1,0 +1,26 @@
+# Local development state
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-*
+*.db
+*.log
+artifacts/
+reports/
+runtime/
+state/
+tmp/
+__pycache__/
+.pytest_cache/
+node_modules/
+dist/
+build/
+
+# Local credentials and runner state
+auth.json
+credentials.json
+secrets/
+.codex/
+.venv/
+venv/
