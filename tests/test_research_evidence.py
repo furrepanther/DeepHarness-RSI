@@ -80,6 +80,10 @@ class ResearchEvidenceTests(unittest.TestCase):
         text = raw.decode("utf-8")
         self.assertGreater(len(raw), 0)
         self.assertLessEqual(len(raw), MAX_REPORT_BYTES)
+        normalized = " ".join(text.split()).lower()
+        self.assertIn("/linuxdata/github/deepharness-rsi", normalized)
+        self.assertIn("only authoring location", normalized)
+        self.assertIn("working backup-of-record", normalized)
         self.assertNotIn("AGENT_MAIL_REGISTRATION_TOKEN", text)
         for marker in SECRET_MARKERS:
             self.assertIsNone(marker.search(text))
