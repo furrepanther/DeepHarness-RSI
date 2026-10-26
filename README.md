@@ -42,6 +42,38 @@ locations must be supplied by the adopter.
 - No claim is made here that all listed integrations are complete or mutually
   compatible.
 
+This repository is also the durable public record and cloud backup for the
+DeepHarness-RSI design work. Durable research, architecture decisions,
+implementation checkpoints, and future harness source belong here and are
+committed locally and pushed to the personal GitHub repository only after an
+explicit operator request or approval. Temporary review
+packets, raw model output, credentials, runtime telemetry, and host-specific
+secrets do not belong here.
+
+All DeepHarness-RSI implementation work is to be performed in this local
+repository (or its personal fork worktree) and reviewed here before any
+production integration. Origin pushes are an explicit operator-controlled
+backup/release action, not an automatic side effect of editing.
+
+The current implementation substrate remains the separate personal
+`furrepanther/deepseek-harness` fork. It is tracked as code lineage rather
+than duplicated blindly into this repository; the exact analyzed revisions
+and the rule for bringing code into DeepHarness-RSI are recorded in
+[`docs/PROVENANCE.md`](docs/PROVENANCE.md).
+
+The durable research and design record is organized as follows:
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - Primus-native target
+  architecture and runtime boundaries.
+- [`docs/RESEARCH-DECISIONS.md`](docs/RESEARCH-DECISIONS.md) - comparative
+  adopt/adapt/reject decisions and the synthesized baseline.
+- [`docs/RESEARCH-MANIFEST.json`](docs/RESEARCH-MANIFEST.json) - pinned source
+  provenance for the requested harness research set.
+- [`docs/IMPLEMENTATION-ROADMAP.md`](docs/IMPLEMENTATION-ROADMAP.md) - gated
+  implementation sequence and empty-boat acceptance criteria.
+- [`docs/PROVENANCE.md`](docs/PROVENANCE.md) - code lineage, backup policy,
+  and recovery procedure.
+
 ## Research and design sources
 
 These repositories are being used as research inputs or implementation
