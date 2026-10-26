@@ -16,10 +16,10 @@ tokens, prompts, hidden reasoning, raw logs, or private host configuration.
   `/linuxdata/Github/DeepHarness-RSI` checkout. Production trees and upstream
   research clones are inputs or deployment targets, not alternate authoring
   locations for harness changes.
-- The personal `furrepanther/deepseek-harness` fork remains the backup and
-  source lineage for the initial DeepSeek substrate. It is not silently
-  replaced by an upstream checkout and is not modified through this repository
-  without a separate reviewed change.
+- The personal `furrepanther/deepseek-harness` fork remains source lineage for
+  the initial DeepSeek substrate. It is not the backup of DeepHarness-RSI work,
+  is not silently replaced by an upstream checkout, and is not modified through
+  this repository without a separate reviewed change.
 - Operational databases, secrets, raw diagnostics, temporary review packets,
   and host recovery archives have separate owners and backup policies. They
   are not copied into this public code repository.
@@ -54,7 +54,8 @@ in this provenance file or a linked release record.
 5. Push the commit to the personal GitHub `origin` only after the operator
    explicitly requests or approves that push, then verify the remote commit
    ID. Editing, committing, testing, and review never authorize an automatic
-   push. The push is the cloud backup proof.
+   push. The local repository is the working backup-of-record; a verified push
+   is the corresponding cloud-backup proof for that commit.
 6. For release-worthy code, add a signed or otherwise verified tag and a
    checksum manifest after the review gate is empty-boat.
 
