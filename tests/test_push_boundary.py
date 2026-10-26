@@ -34,6 +34,14 @@ class PushBoundaryTests(unittest.TestCase):
         self.assertIn("interactive operator confirmation", result.stderr)
         self.assertNotIn("Everything up-to-date", result.stdout)
 
+    def test_guard_allowlists_only_the_personal_origin(self) -> None:
+        script = GUARD.read_text(encoding="utf-8")
+
+        self.assertIn("/linuxdata/Github/DeepHarness-RSI", script)
+        self.assertIn("https://github.com/furrepanther/DeepHarness-RSI.git", script)
+        self.assertIn("git push origin", script)
+        self.assertNotIn("git push upstream", script)
+
 
 if __name__ == "__main__":
     unittest.main()
