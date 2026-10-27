@@ -105,6 +105,12 @@ performance review.
 | [tursodatabase/agentfs](https://github.com/tursodatabase/agentfs) | Agent-oriented filesystem and SQLite storage concepts; beta software reserved for late, isolated evaluation. |
 | [sunblaze-ucb/exploitgym](https://github.com/sunblaze-ucb/exploitgym) | Future post-review security and exploit-resistance research; not a production dependency. |
 
+The requested literal `deepseek/agent-harness` repository was checked and was
+not available at the time of research. The verified public DeepSeek source is
+`deepseek-ai/deepseek-harness`, which is the source-lineage mapping recorded in
+the manifest and research decisions; the two names must not be treated as the
+same upstream identity without that qualification.
+
 The local two-system environment also supplies non-GitHub contracts and
 services, especially the inference router, Agent Mail, Memory Fabric, shared
 skills, and adversarial review workflow. Those are integration dependencies,
