@@ -1,6 +1,6 @@
 # DeepHarness-RSI Implementation Roadmap
 
-Status: Gate 1 contract implementation in progress; production promotion
+Status: Gate 1 contract implementation reviewed locally; production promotion
 remains gated.
 
 Every checkpoint is empty-boat: no warnings, errors, stale provenance,
