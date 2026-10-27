@@ -21,7 +21,7 @@ Current implementation: `src/deepharness_rsi/contracts.py` and
 free; the router adapter, durable ledger, and production integration remain
 later gates.
 
-## Gate 2 - Admission and execution ledger
+## Gate 2 - Admission and execution ledger (local implementation in progress)
 
 - Implement immutable task identity, idempotency keys, leases, fencing,
   heartbeat evidence, and terminal-state ownership.
@@ -29,6 +29,19 @@ later gates.
   model/schema mismatch, and partial settlement.
 - Use task-scoped progress and terminal evidence; elapsed duration is telemetry,
   never the kill condition.
+
+Current local slice: `src/deepharness_rsi/ledger.py`, with design and
+acceptance evidence in `docs/GATE2-DESIGN.md` and
+`tests/test_gate2_ledger.py`. The slice is provider-free and not promoted;
+router, Agent Mail, cross-host, load, chaos, and production integration remain
+explicitly later gates.
+
+Current checkpoint: the local implementation and 28-test suite are green, but
+the required adversarial review has not started because the shared review
+transport cannot yet persist the complete temporary evidence packet. This is a
+review-infrastructure blocker, not a promotion decision; do not bypass the
+pointer-backed evidence contract or treat the local tests as an empty-boat
+review result.
 
 ## Gate 3 - Evidence and temporary storage
 
