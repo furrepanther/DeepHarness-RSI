@@ -1,6 +1,7 @@
 # DeepHarness-RSI Implementation Roadmap
 
-Status: research complete; engineering and production promotion remain gated.
+Status: Gate 1 contract implementation in progress; production promotion
+remains gated.
 
 Every checkpoint is empty-boat: no warnings, errors, stale provenance,
 unknown ownership, direct-provider route, missing receipt, or unresolved
@@ -14,6 +15,11 @@ adversarial finding may pass.
   widen tools, namespaces, network, concurrency, depth, or expiry.
 - Add static rejection tests for direct provider calls, hidden cloud routes,
   unbounded reads, and duration-only termination.
+
+Current implementation: `src/deepharness_rsi/contracts.py` and
+`tests/test_gate1_contracts.py`. These contracts are local-only and provider
+free; the router adapter, durable ledger, and production integration remain
+later gates.
 
 ## Gate 2 - Admission and execution ledger
 

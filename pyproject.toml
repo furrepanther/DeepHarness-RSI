@@ -1,0 +1,9 @@
+[project]
+name = "deepharness-rsi"
+version = "0.1.0.dev0"
+description = "Local-first, two-system harness contracts and reliability controls"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
