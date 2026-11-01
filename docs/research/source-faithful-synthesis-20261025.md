@@ -1,4 +1,9 @@
-<!-- Repository copy: source snapshot retained below. The requested deepseek/agent-harness URL was unavailable; research used the separately identified deepseek-ai/deepseek-harness repository. Claims below that all requested URLs were fetched are historical and do not supersede that qualification. The independent gate remains incomplete. -->
+> **Repository copy qualification:** The requested `deepseek/agent-harness`
+> URL was unavailable; research used the separately identified
+> `deepseek-ai/deepseek-harness` repository. Claims below that all requested
+> URLs were fetched are historical and do not supersede that qualification.
+> The independent gate remains incomplete. The source snapshot is retained
+> unchanged beneath this notice.
 
 # DeepHarness-RSI Source-Faithful Comparative Synthesis
 
