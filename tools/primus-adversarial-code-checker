@@ -806,11 +806,14 @@ def map_defects_to_findings(defects: Any) -> list[dict[str, Any]]:
         title = str(defect.get("title") or defect.get("category") or "model-reported defect")
         desc = str(defect.get("description") or title)
         evidence = str(defect.get("evidence") or desc)
+        blocking = defect.get("blocking")
+        if not isinstance(blocking, bool):
+            blocking = severity in {"Critical", "High"}
         findings.append({
             "id": f"F{i}",
             "severity": severity,
             "location": str(defect.get("location") or evidence[:180] or "reviewed artifact"),
-            "blocking": severity in {"Critical", "High"},
+            "blocking": blocking,
             "observed_evidence": evidence,
             "failure_scenario": desc,
             "why_not_noise": "Mapped from checker model defect with concrete evidence.",
@@ -1006,74 +1009,6 @@ def normalize_test_gaps(value: Any) -> list[dict[str, Any]]:
     return normalized
 
 
-def apply_deterministic_finding_guards(findings: list[dict[str, Any]], packet: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
-    """Downgrade narrow known hallucination patterns without hiding real gaps."""
-    diff = stringify_section(packet.get("DIFF_OR_FILES", ""))
-    tests = stringify_section(packet.get("TESTS", ""))
-    reviewed_text = diff + "\n" + tests
-    guarded: list[dict[str, Any]] = []
-    notes: list[str] = []
-    sqlite_context_commit = "with sqlite3.connect" in diff and ".commit()" in diff
-    has_raise_for_status = ".raise_for_status()" in diff or "raise_for_status()" in diff
-    uses_router_11888 = "127.0.0.1:11888/v1" in reviewed_text
-    forbidden_endpoints = forbidden_inference_endpoints(reviewed_text)
-    for finding in findings:
-        evidence = " ".join(
-            str(finding.get(key, ""))
-            for key in ("observed_evidence", "failure_scenario", "required_fix")
-        ).lower()
-        sqlite_transaction_claim = (
-            sqlite_context_commit
-            and ("sqlite3.connect" in evidence or "context manager" in evidence or "commit" in evidence)
-            and any(term in evidence for term in ("begin", "commit", "transaction", "isolation", "atomic", "context manager"))
-        )
-        if sqlite_transaction_claim:
-            finding["severity"] = "Medium"
-            finding["blocking"] = False
-            finding["why_not_noise"] = "Guard downgraded a known SQLite transaction false-positive signature; reviewer adjudication still required."
-            notes.append("downgraded unsupported sqlite transaction finding; diff uses sqlite3 context manager and explicit commit")
-        http_error_claim = (
-            has_raise_for_status
-            and any(term in evidence for term in ("non-200", "non 200", "http error", "raise", "status"))
-            and any(term in evidence for term in ("does not", "doesn't", "missing", "only calls", "cannot verify"))
-        )
-        if http_error_claim:
-            finding["severity"] = "Medium"
-            finding["blocking"] = False
-            finding["why_not_noise"] = "Guard downgraded a known HTTP error-handling false-positive signature; reviewer adjudication still required."
-            notes.append("downgraded unsupported HTTP error-handling finding; diff visibly calls raise_for_status()")
-        cloud_signal_clean_claim = (
-            "cloud_fallback_required" in reviewed_text
-            and "x-inference-cloud-required" in reviewed_text
-            and uses_router_11888
-            and not forbidden_endpoints
-            and any(term in evidence for term in ("router evidence", "router args", "global state", "mock", "r.json", "non-json", "cloud_required"))
-            and any(term in evidence for term in ("missing", "no ", "without", "crash", "fail"))
-        )
-        if cloud_signal_clean_claim:
-            finding["severity"] = "Low"
-            finding["blocking"] = False
-            finding["why_not_noise"] = "Guard downgraded unsupported cloud-handoff false-positive; packet shows router-only cloud-required propagation and no direct provider call."
-            notes.append("downgraded unsupported cloud-required propagation finding; executable path stays on router")
-        router_bypass_claim = (
-            uses_router_11888
-            and not forbidden_endpoints
-            and "11888" in evidence
-            and any(term in evidence for term in ("bypass", "direct llama", "instead of using the local inference router", "direct backend"))
-        )
-        if router_bypass_claim:
-            finding["severity"] = "Medium"
-            finding["blocking"] = False
-            finding["why_not_noise"] = "Guard downgraded unsupported router-bypass claim; 127.0.0.1:11888/v1 is the local inference router."
-            notes.append("downgraded unsupported router-bypass finding; diff uses local inference router 11888/v1")
-        guarded.append(finding)
-    severity_rank = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
-    guarded.sort(key=lambda f: (not bool(f.get("blocking")), severity_rank.get(str(f.get("severity")), 4)))
-    for i, finding in enumerate(guarded, 1):
-        finding["id"] = f"F{i}"
-    return guarded, notes
-
-
 def append_deterministic_policy_findings(findings: list[dict[str, Any]], packet: dict[str, Any]) -> list[dict[str, Any]]:
     """Add objective, packet-derived findings for recurring checker misses."""
     text = "\n".join(
@@ -1243,9 +1178,9 @@ def append_deterministic_policy_findings(findings: list[dict[str, Any]], packet:
 
     severity_rank = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
     findings.sort(key=lambda f: (not bool(f.get("blocking")), severity_rank.get(str(f.get("severity")), 4)))
-    for i, finding in enumerate(findings[:3], 1):
+    for i, finding in enumerate(findings, 1):
         finding["id"] = f"F{i}"
-    return findings[:3]
+    return findings
 
 
 def apply_policy_gates(result: dict[str, Any], packet: dict[str, Any], finish_reason: str, *, reviewer_receipt_verified: bool = False) -> None:
@@ -1288,10 +1223,6 @@ def apply_policy_gates(result: dict[str, Any], packet: dict[str, Any], finish_re
     if high_risk_missing_evidence:
         result["merge_decision"]["decision"] = "insufficient_evidence"
         result["merge_decision"]["reason"] = "insufficient evidence: " + "; ".join(unsafe_no_block_reasons or ["required implementation/test evidence missing"])
-        for finding in result.get("findings", []):
-            if isinstance(finding, dict):
-                finding["blocking"] = False
-                finding["why_not_noise"] = "Packet lacks verified implementation/test evidence; treat model defect claims as unproven until evidence is supplied."
         gaps = result.get("test_assertion_gaps") if isinstance(result.get("test_assertion_gaps"), list) else []
         gaps.append({
             "requirement_id": "R1",
@@ -1393,18 +1324,8 @@ def coerce_result(result: dict[str, Any], *, packet: dict[str, Any], packet_id: 
     result["acceptance_coverage"] = coverage
 
     result["findings"] = normalize_findings(result.get("findings"))
-    if not result.get("findings"):
-        result["findings"] = map_defects_to_findings(result.get("defects"))
-    result["findings"], guard_notes = apply_deterministic_finding_guards(result.get("findings", []), packet)
+    result["findings"].extend(map_defects_to_findings(result.get("defects")))
     result["findings"] = append_deterministic_policy_findings(result.get("findings", []), packet)
-    reviewed_text_for_noise_cap = stringify_section(packet.get("DIFF_OR_FILES", "")) + "\n" + stringify_section(packet.get("TESTS", ""))
-    if (
-        "cloud_fallback_required" in reviewed_text_for_noise_cap
-        and "x-inference-cloud-required" in reviewed_text_for_noise_cap
-        and "127.0.0.1:11888" in reviewed_text_for_noise_cap
-        and not any(f.get("blocking") for f in result.get("findings", []) if isinstance(f, dict))
-    ):
-        result["findings"] = result["findings"][:1]
     result["prompt_injection_attempts"] = normalize_prompt_injections(result.get("prompt_injection_attempts"))
     if not result["prompt_injection_attempts"]:
         result["prompt_injection_attempts"] = detect_prompt_injections(packet, result.get("findings", []))
@@ -1412,10 +1333,7 @@ def coerce_result(result: dict[str, Any], *, packet: dict[str, Any], packet_id: 
     residual_risks = result.get("residual_risks")
     if not isinstance(residual_risks, list):
         residual_risks = []
-    result["residual_risks"] = list(dict.fromkeys(residual_risks + [
-        f"{note}; deterministic checker guard applied; tune prompt/corpus with reviewer evidence"
-        for note in guard_notes
-    ]))
+    result["residual_risks"] = list(dict.fromkeys(residual_risks))
     reviewed_text_for_residual = stringify_section(packet.get("DIFF_OR_FILES", ""))
     if "/linuxdata/Github/llama.cpp" in reviewed_text_for_residual and "/local_build" in stringify_section(packet.get("ACCEPTANCE_CRITERIA", "")):
         result["residual_risks"] = list(dict.fromkeys(result["residual_risks"] + [

@@ -94,6 +94,59 @@ def test_fully_covered_no_block_is_preserved():
     assert decide(model()) == "no_blocking_defect_found"
 
 
+def test_keyword_guard_cannot_downgrade_real_blocking_finding():
+    packet = copy.deepcopy(PACKET)
+    packet["DIFF_OR_FILES"] = "with sqlite3.connect(path) as db: db.commit()"
+    value = model()
+    value["findings"] = [{"severity": "High", "blocking": True,
+                          "observed_evidence": "sqlite3.connect does not close the connection",
+                          "failure_scenario": "transaction context manager leaks file descriptors",
+                          "required_fix": "close the connection"}]
+    result = checker.coerce_result(value, packet=packet, packet_id="fixture", packet_hash="fixture",
+                                   route=copy.deepcopy(ROUTE), finish_reason="stop", reviewer_receipt_verified=True)
+    assert result["merge_decision"]["decision"] == "block"
+    assert result["findings"][0]["blocking"] is True
+    assert result["findings"][0]["severity"] == "High"
+
+
+def test_missing_evidence_does_not_erase_blocking_findings():
+    packet = copy.deepcopy(PACKET)
+    packet["TESTS"] = ""
+    value = model("block")
+    value["findings"] = [{"severity": "High", "blocking": True, "description": "Potential resource leak"}]
+    result = checker.coerce_result(value, packet=packet, packet_id="fixture", packet_hash="fixture",
+                                   route=copy.deepcopy(ROUTE), finish_reason="stop", reviewer_receipt_verified=True)
+    assert result["merge_decision"]["decision"] == "insufficient_evidence"
+    assert result["findings"][0]["blocking"] is True
+
+
+def test_checker_preserves_all_reported_findings():
+    value = model()
+    value["findings"] = [{"severity": "Medium", "blocking": False, "description": f"Issue {i}"} for i in range(5)]
+    result = checker.coerce_result(value, packet=copy.deepcopy(PACKET), packet_id="fixture", packet_hash="fixture",
+                                   route=copy.deepcopy(ROUTE), finish_reason="stop", reviewer_receipt_verified=True)
+    assert len(result["findings"]) == 5
+
+
+def test_defects_are_not_discarded_when_findings_also_exist():
+    value = model()
+    value["findings"] = [{"severity": "Low", "blocking": False, "description": "Minor issue"}]
+    value["defects"] = [{"severity": "Critical", "description": "Critical lost defect"}]
+    result = checker.coerce_result(value, packet=copy.deepcopy(PACKET), packet_id="fixture", packet_hash="fixture",
+                                   route=copy.deepcopy(ROUTE), finish_reason="stop", reviewer_receipt_verified=True)
+    assert result["merge_decision"]["decision"] == "block"
+    assert any(f["failure_scenario"] == "Critical lost defect" and f["blocking"] for f in result["findings"])
+
+
+def test_explicit_blocking_defect_is_preserved_at_medium_severity():
+    value = model()
+    value["defects"] = [{"severity": "Medium", "blocking": True, "description": "Explicit blocker"}]
+    result = checker.coerce_result(value, packet=copy.deepcopy(PACKET), packet_id="fixture", packet_hash="fixture",
+                                   route=copy.deepcopy(ROUTE), finish_reason="stop", reviewer_receipt_verified=True)
+    assert result["merge_decision"]["decision"] == "block"
+    assert result["findings"][0]["blocking"] is True
+
+
 @pytest.mark.parametrize("receipt", [False, None, 1, "true"])
 def test_no_block_requires_explicit_verified_reviewer_receipt(receipt):
     result = checker.coerce_result(

@@ -77,6 +77,48 @@ class ReviewWrapperTransportTests(unittest.TestCase):
         cls.wrapper = load_wrapper()
         cls.checker = load_checker()
 
+    def test_inaccessible_material_cannot_produce_no_block(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "result.json"
+            path.write_text(json.dumps({
+                "merge_decision": {"decision": "no_blocking_defect_found", "reason": "no findings"},
+                "findings": [],
+                "materials_reviewed": [{"id": "F1", "type": "diff", "status": "inaccessible"}],
+            }))
+            result, error = self.wrapper.load_json_or_error(path)
+            self.assertEqual(error, "")
+            self.assertEqual(result["merge_decision"]["decision"], "insufficient_evidence")
+            self.assertIn("inaccessible", result["merge_decision"]["reason"])
+
+    def test_explicit_block_with_inaccessible_material_remains_block(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "result.json"
+            path.write_text(json.dumps({
+                "merge_decision": {"decision": "block", "reason": "observed defect"},
+                "findings": [{"blocking": True}],
+                "materials_reviewed": [{"id": "F1", "type": "diff", "status": "inaccessible"}],
+            }))
+            result, error = self.wrapper.load_json_or_error(path)
+            self.assertEqual(error, "")
+            self.assertEqual(result["merge_decision"]["decision"], "block")
+
+    def test_model_material_claims_are_not_a_verified_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "result.json"
+            path.write_text(json.dumps({
+                "merge_decision": {"decision": "no_blocking_defect_found", "reason": "done"},
+                "findings": [],
+                "materials_reviewed": [
+                    {"id": "DIFF_OR_FILES", "status": "fully_reviewed"},
+                    {"id": "TESTS", "status": "fully_reviewed"},
+                ],
+                "reviewer_receipt_verified": True,
+            }))
+            result, error = self.wrapper.load_json_or_error(path)
+            self.assertEqual(error, "")
+            self.assertEqual(result["merge_decision"]["decision"], "insufficient_evidence")
+            self.assertIn("receipt", result["merge_decision"]["reason"])
+
     def test_cloud_handoff_stops_context_retry_and_writes_typed_result(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

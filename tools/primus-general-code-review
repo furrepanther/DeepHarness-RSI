@@ -244,6 +244,22 @@ def load_json_or_error(path: Path, *, documentation: bool = False) -> tuple[Any 
                 raise ValueError("documentation output lacks suggested_comments list")
         elif not isinstance(result.get("merge_decision"), dict) or result["merge_decision"].get("decision") not in {"block", "insufficient_evidence", "no_blocking_defect_found"} or not isinstance(result.get("findings"), list):
             raise ValueError("review output lacks valid merge_decision/findings")
+        if not documentation and result["merge_decision"]["decision"] == "no_blocking_defect_found":
+            if any(isinstance(f, dict) and f.get("blocking") is True for f in result["findings"]):
+                result["merge_decision"] = {**result["merge_decision"], "decision": "block",
+                                            "reason": "reviewer supplied a blocking finding"}
+            else:
+                materials = result.get("materials_reviewed")
+                if not isinstance(materials, list) or not materials or any(
+                    not isinstance(item, dict) or item.get("status") != "fully_reviewed" for item in materials
+                ):
+                    result["merge_decision"] = {**result["merge_decision"], "decision": "insufficient_evidence",
+                                                "reason": "review materials missing, inaccessible or not fully reviewed"}
+                else:
+                    # This wrapper has no trusted reviewer-side receipt verifier yet.
+                    # Reviewer assertions and producer-side hashes cannot prove delivery.
+                    result["merge_decision"] = {**result["merge_decision"], "decision": "insufficient_evidence",
+                                                "reason": "trusted reviewer-side evidence receipt unavailable"}
         return result, ""
     except Exception as exc:
         return None, f"{type(exc).__name__}: {exc}"
