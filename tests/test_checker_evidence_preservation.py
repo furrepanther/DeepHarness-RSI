@@ -1,6 +1,7 @@
 import copy
 import importlib.machinery
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -128,6 +129,33 @@ def test_model_block_is_not_downgraded_for_nonblocking_findings():
     value = model("block")
     value["findings"] = [{"severity": "Low", "blocking": False, "description": "fixture observation"}]
     assert decide(value) == "block"
+
+
+@pytest.mark.parametrize("schema,expected_exit", [({"type": "object"}, 0), ({"type": "object", "required": ["model_only"]}, 3)])
+def test_custom_output_schema_cannot_bypass_evidence_policy(tmp_path, monkeypatch, schema, expected_exit):
+    packet_path = tmp_path / "packet.json"
+    schema_path = tmp_path / "custom-schema.json"
+    prompt_path = tmp_path / "prompt.md"
+    output_path = tmp_path / "result.json"
+    packet_path.write_text(json.dumps(PACKET))
+    schema_path.write_text(json.dumps(schema))
+    prompt_path.write_text("Review the supplied packet.")
+    value = model()
+    value["model_only"] = True
+    value["materials_reviewed"][0]["status"] = "inaccessible"
+
+    def fake_router(url, payload, router_base, poll_seconds):
+        response = {"id": "fixture-request", "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(value)}}]}
+        headers = {"x-inference-route": "worker", "x-inference-adapter-id": "primus-inference-router", "x-inference-adapter-version": "router-contract-v1"}
+        return response, headers, json.dumps(payload).encode(), json.dumps(response).encode()
+
+    monkeypatch.setattr(checker, "local_http_json_with_evidence", fake_router)
+    monkeypatch.setattr(sys, "argv", ["checker", "--local", "--input", str(packet_path), "--output", str(output_path), "--schema-file", str(schema_path), "--prompt-file", str(prompt_path)])
+    assert checker.main() == expected_exit
+    if expected_exit == 0:
+        assert json.loads(output_path.read_text())["merge_decision"]["decision"] == "insufficient_evidence"
+    else:
+        assert not output_path.exists()
 
 
 def test_criterion_whitespace_differences_do_not_change_identity():

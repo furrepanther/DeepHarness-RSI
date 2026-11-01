@@ -1453,27 +1453,6 @@ def strip_top_level_to_schema(result: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in result.items() if k in allowed}
 
 
-def uses_default_schema(schema_path: Path) -> bool:
-    """Treat an explicitly staged runtime schema as the canonical schema.
-
-    Portable runners intentionally relocate the production schema.  Comparing
-    only against the historical Primus absolute path would skip the wrapper's
-    source-owned normalization and allow model-supplied route evidence through.
-    """
-    candidates = [DEFAULT_SCHEMA]
-    configured = os.getenv("PRIMUS_REVIEW_CHECKER_SCHEMA", "").strip()
-    if configured:
-        candidates.append(Path(configured))
-    runtime_root = os.getenv("PRIMUS_REVIEW_RUNTIME_ROOT", "").strip()
-    if runtime_root:
-        candidates.append(Path(runtime_root) / "next-tasks" / DEFAULT_SCHEMA.name)
-    try:
-        resolved = schema_path.resolve()
-        return any(resolved == candidate.resolve() for candidate in candidates)
-    except OSError:
-        return any(schema_path == candidate for candidate in candidates)
-
-
 def coerce_result(result: dict[str, Any], *, packet: dict[str, Any], packet_id: str, packet_hash: str, route: dict[str, Any], finish_reason: str) -> dict[str, Any]:
     result["schema_version"] = SCHEMA_VERSION
     result["prompt_version"] = PROMPT_VERSION
@@ -1889,28 +1868,7 @@ def main() -> int:
                 print(f"response schema error at {path}: {err.message}", file=sys.stderr)
             return 3
 
-    # A portable runner may pass an equivalent staged copy of the normalized
-    # schema. When a compact response schema is supplied, normalize that model
-    # response into the full schema before validating it; path identity alone
-    # must not disable the normalization contract.
-    if not uses_default_schema(args.schema_file) and not args.response_schema_file:
-        validator = jsonschema.Draft202012Validator(schema)
-        errors = sorted(validator.iter_errors(result), key=lambda e: list(e.path))
-        if errors:
-            for err in errors[:20]:
-                path = "/".join(str(p) for p in err.path) or "<root>"
-                print(f"schema error at {path}: {err.message}", file=sys.stderr)
-            return 3
-        output = json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True)
-        if args.output:
-            args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(output + "\n", encoding="utf-8")
-        else:
-            print(output)
-        if invalid_route:
-            return 4
-        return 0
-
+    # Schema location must never bypass evidence or route normalization.
     result = coerce_result(result, packet=packet, packet_id=packet_id, packet_hash=packet_hash, route=route, finish_reason=finish_reason)
     validator = jsonschema.Draft202012Validator(schema)
     errors = sorted(validator.iter_errors(result), key=lambda e: list(e.path))
