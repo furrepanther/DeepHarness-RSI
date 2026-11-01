@@ -147,6 +147,18 @@ def test_explicit_blocking_defect_is_preserved_at_medium_severity():
     assert result["findings"][0]["blocking"] is True
 
 
+def test_blocking_test_gap_precludes_clean_decision_and_is_not_truncated():
+    value = model()
+    value["test_assertion_gaps"] = [
+        {"requirement_id": "R1", "gap": f"Gap {i}", "blocking": i == 10} for i in range(11)
+    ]
+    result = checker.coerce_result(value, packet=copy.deepcopy(PACKET), packet_id="fixture", packet_hash="fixture",
+                                   route=copy.deepcopy(ROUTE), finish_reason="stop", reviewer_receipt_verified=True)
+    assert result["merge_decision"]["decision"] == "insufficient_evidence"
+    assert len(result["test_assertion_gaps"]) == 11
+    assert result["test_assertion_gaps"][-1]["blocking"] is True
+
+
 @pytest.mark.parametrize("receipt", [False, None, 1, "true"])
 def test_no_block_requires_explicit_verified_reviewer_receipt(receipt):
     result = checker.coerce_result(

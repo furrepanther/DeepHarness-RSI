@@ -997,7 +997,7 @@ def normalize_test_gaps(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
     normalized = []
-    for i, item in enumerate(value[:10], 1):
+    for i, item in enumerate(value, 1):
         if not isinstance(item, dict):
             item = {"gap": str(item)}
         req_id = str(item.get("requirement_id") or f"R{i}")
@@ -1263,6 +1263,11 @@ def apply_policy_gates(result: dict[str, Any], packet: dict[str, Any], finish_re
             missing_coverage = True
     if no_block and missing_coverage:
         unsafe_no_block_reasons.append("acceptance criteria lack complete verified coverage")
+    if no_block and any(
+        isinstance(gap, dict) and gap.get("blocking") is True
+        for gap in result.get("test_assertion_gaps", [])
+    ):
+        unsafe_no_block_reasons.append("reviewer reported blocking test assertion gaps")
     materials = result.get("materials_reviewed")
     if no_block:
         if not isinstance(materials, list) or not materials:
