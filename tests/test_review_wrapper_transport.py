@@ -102,6 +102,23 @@ class ReviewWrapperTransportTests(unittest.TestCase):
             proc = subprocess.CompletedProcess(["checker"], 10, stdout="", stderr="context size exceeded" + "x" * 65536)
             self.assertFalse(self.wrapper.is_context_failure(proc, Path(directory) / "missing"))
 
+    def test_review_launchers_reject_explicit_and_inherited_cloud_mode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            launchers = [
+                (ROOT / "tools" / "primus-general-code-review", ["--input", str(root / "missing"), "--output", str(root / "out"), "--raw-dir", str(root / "raw")]),
+                (ROOT / "tools" / "primus-grumpy-reviewer", ["--input", str(root / "missing")]),
+            ]
+            for launcher, args in launchers:
+                for explicit in (True, False):
+                    with self.subTest(launcher=launcher.name, explicit=explicit):
+                        env = dict(os.environ, PRIMUS_INFERENCE_MODE="local" if explicit else "cloud")
+                        cmd = [sys.executable, str(launcher), *args, *(["--cloud"] if explicit else [])]
+                        result = subprocess.run(cmd, capture_output=True, text=True, env=env, check=False)
+                        self.assertEqual(result.returncode, 2)
+                        self.assertIn("must be local for review workers", result.stderr)
+                        self.assertFalse((root / "out").exists())
+
     def test_legacy_structured_handoff_is_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
             raw = Path(directory) / "raw.json"

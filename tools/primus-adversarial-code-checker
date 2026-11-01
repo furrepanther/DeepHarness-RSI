@@ -1509,8 +1509,6 @@ def main() -> int:
     add_inference_mode(parser)
     args = parse_inference_args(parser)
 
-    if args.inference_mode == "cloud":
-        parser.error("direct cloud review is unavailable; route any cloud-required decision through the local router handoff")
     if args.allow_cloud_fallback_on_local_unavailable:
         parser.error("--allow-cloud-fallback-on-local-unavailable is retired; use the local router handoff")
 

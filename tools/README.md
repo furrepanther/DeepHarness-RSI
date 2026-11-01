@@ -38,6 +38,7 @@ hash does not attest its evidence. This guard does not itself prove receipt for
 ordinary responses.
 
 The staged checker sends inference only to the loopback router. Direct cloud
-mode and the retired caller-side fallback are rejected. A router-provided
-cloud-required response remains visible as a handoff signal in the error
+mode is rejected by the shared launcher-mode helper, including when inherited
+from the environment, and the retired caller-side fallback is rejected. A
+router-provided cloud-required response remains visible as a handoff signal in the error
 artifact; this candidate does not itself execute that handoff.

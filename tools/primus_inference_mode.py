@@ -1,8 +1,8 @@
 """Small host-neutral launcher-mode helper used by the review wrapper.
 
-The wrapper must be runnable from a personal fork on either runner host.  This
-module only validates and propagates the explicit local/cloud execution mode;
-it does not select a backend or provide a cloud fallback.
+The wrapper must be runnable from a personal fork on either runner host. This
+module permits only local-router execution; cloud-required handoffs are
+returned to the parent rather than dispatched directly by a review worker.
 """
 
 import os
@@ -12,8 +12,8 @@ INFERENCE_MODE_ENV = "PRIMUS_INFERENCE_MODE"
 
 
 def validate_inference_mode(mode):
-    if mode not in {"local", "cloud"}:
-        raise ValueError(f"{INFERENCE_MODE_ENV} must be local or cloud, got {mode!r}")
+    if mode != "local":
+        raise ValueError(f"{INFERENCE_MODE_ENV} must be local for review workers; handle cloud-required signals through the router handoff")
     return mode
 
 
@@ -25,7 +25,7 @@ def add_inference_mode(parser):
         dest="inference_mode",
         action="store_const",
         const="cloud",
-        help="use configured cloud inference explicitly; never try local",
+        help="unsupported: cloud-required results are handed to the parent",
     )
     modes.add_argument(
         "-l",
