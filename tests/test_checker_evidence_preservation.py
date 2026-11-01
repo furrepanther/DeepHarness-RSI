@@ -49,7 +49,7 @@ def model(decision="no_blocking_defect_found"):
 def decide(value):
     return checker.coerce_result(
         copy.deepcopy(value), packet=copy.deepcopy(PACKET), packet_id="fixture",
-        packet_hash="fixture", route=copy.deepcopy(ROUTE), finish_reason="stop",
+        packet_hash="fixture", route=copy.deepcopy(ROUTE), finish_reason="stop", reviewer_receipt_verified=True,
     )["merge_decision"]["decision"]
 
 
@@ -66,7 +66,7 @@ def test_unresolved_compact_index_is_not_complete_review_evidence(shape, prefix)
     packet["DIFF_OR_FILES"] = index if shape == "text" else ({"content": index} if shape == "mapping" else [index])
     result = checker.coerce_result(
         model(), packet=packet, packet_id="fixture", packet_hash="fixture",
-        route=copy.deepcopy(ROUTE), finish_reason="stop",
+        route=copy.deepcopy(ROUTE), finish_reason="stop", reviewer_receipt_verified=True,
     )
     assert result["merge_decision"]["decision"] == "insufficient_evidence"
 
@@ -76,7 +76,7 @@ def test_index_marker_inside_source_string_is_not_mistaken_for_an_index():
     packet["DIFF_OR_FILES"] = 'fixture.py: marker = "complete_evidence_index=yes;"'
     result = checker.coerce_result(
         model(), packet=packet, packet_id="fixture", packet_hash="fixture",
-        route=copy.deepcopy(ROUTE), finish_reason="stop",
+        route=copy.deepcopy(ROUTE), finish_reason="stop", reviewer_receipt_verified=True,
     )
     assert result["merge_decision"]["decision"] == "no_blocking_defect_found"
 
@@ -90,6 +90,23 @@ def test_model_insufficient_evidence_is_not_promoted(findings):
 
 def test_fully_covered_no_block_is_preserved():
     assert decide(model()) == "no_blocking_defect_found"
+
+
+@pytest.mark.parametrize("receipt", [False, None, 1, "true"])
+def test_no_block_requires_explicit_verified_reviewer_receipt(receipt):
+    result = checker.coerce_result(
+        model(), packet=copy.deepcopy(PACKET), packet_id="fixture", packet_hash="fixture",
+        route=copy.deepcopy(ROUTE), finish_reason="stop", reviewer_receipt_verified=receipt,
+    )
+    assert result["merge_decision"]["decision"] == "insufficient_evidence"
+
+
+def test_model_cannot_supply_its_own_receipt():
+    value = model()
+    value["reviewer_receipt_verified"] = True
+    result = checker.coerce_result(value, packet=copy.deepcopy(PACKET), packet_id="fixture",
+                                   packet_hash="fixture", route=copy.deepcopy(ROUTE), finish_reason="stop")
+    assert result["merge_decision"]["decision"] == "insufficient_evidence"
 
 
 @pytest.mark.parametrize("status", ["inaccessible", "missing", "partially_reviewed", "possibly_truncated", "unknown"])
@@ -132,7 +149,8 @@ def test_model_block_is_not_downgraded_for_nonblocking_findings():
 
 
 @pytest.mark.parametrize("schema,expected_exit", [({"type": "object"}, 0), ({"type": "object", "required": ["model_only"]}, 3)])
-def test_custom_output_schema_cannot_bypass_evidence_policy(tmp_path, monkeypatch, schema, expected_exit):
+@pytest.mark.parametrize("material_status", ["fully_reviewed", "inaccessible"])
+def test_custom_output_schema_cannot_bypass_evidence_policy(tmp_path, monkeypatch, schema, expected_exit, material_status):
     packet_path = tmp_path / "packet.json"
     schema_path = tmp_path / "custom-schema.json"
     prompt_path = tmp_path / "prompt.md"
@@ -142,7 +160,7 @@ def test_custom_output_schema_cannot_bypass_evidence_policy(tmp_path, monkeypatc
     prompt_path.write_text("Review the supplied packet.")
     value = model()
     value["model_only"] = True
-    value["materials_reviewed"][0]["status"] = "inaccessible"
+    value["materials_reviewed"][0]["status"] = material_status
 
     def fake_router(url, payload, router_base, poll_seconds):
         response = {"id": "fixture-request", "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(value)}}]}

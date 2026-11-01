@@ -1335,7 +1335,7 @@ def append_deterministic_policy_findings(findings: list[dict[str, Any]], packet:
     return findings[:3]
 
 
-def apply_policy_gates(result: dict[str, Any], packet: dict[str, Any], finish_reason: str) -> None:
+def apply_policy_gates(result: dict[str, Any], packet: dict[str, Any], finish_reason: str, *, reviewer_receipt_verified: bool = False) -> None:
     provenance = packet.get("PROVENANCE", {}) if isinstance(packet.get("PROVENANCE"), dict) else {}
     missing_required = [
         key for key in ("TASK", "ACCEPTANCE_CRITERIA", "DIFF_OR_FILES", "TESTS", "KNOWN_CONSTRAINTS", "PROVENANCE")
@@ -1343,6 +1343,8 @@ def apply_policy_gates(result: dict[str, Any], packet: dict[str, Any], finish_re
     ]
     no_block = result.get("merge_decision", {}).get("decision") == "no_blocking_defect_found"
     unsafe_no_block_reasons = []
+    if reviewer_receipt_verified is not True:
+        unsafe_no_block_reasons.append("reviewer evidence receipt is not verified")
     if missing_required:
         unsafe_no_block_reasons.append("required packet sections missing: " + ",".join(missing_required))
     if not provenance.get("provenance_verified"):
@@ -1453,7 +1455,7 @@ def strip_top_level_to_schema(result: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in result.items() if k in allowed}
 
 
-def coerce_result(result: dict[str, Any], *, packet: dict[str, Any], packet_id: str, packet_hash: str, route: dict[str, Any], finish_reason: str) -> dict[str, Any]:
+def coerce_result(result: dict[str, Any], *, packet: dict[str, Any], packet_id: str, packet_hash: str, route: dict[str, Any], finish_reason: str, reviewer_receipt_verified: bool = False) -> dict[str, Any]:
     result["schema_version"] = SCHEMA_VERSION
     result["prompt_version"] = PROMPT_VERSION
     result["review_packet"] = {
@@ -1552,7 +1554,7 @@ def coerce_result(result: dict[str, Any], *, packet: dict[str, Any], packet_id: 
         result["merge_decision"]["reason"] = "wrapper promoted missing decision to block because blocking findings remain"
     if result.get("findings") and result["merge_decision"].get("decision") == "no_blocking_defect_found" and any(f.get("blocking") for f in result["findings"]):
         result["merge_decision"]["decision"] = "block"
-    apply_policy_gates(result, packet, finish_reason)
+    apply_policy_gates(result, packet, finish_reason, reviewer_receipt_verified=reviewer_receipt_verified)
     result["materials_reviewed"] = ensure_list(result.get("materials_reviewed"))
     result["requirements_extracted"] = ensure_list(result.get("requirements_extracted"))
     result["test_assertions_extracted"] = ensure_list(result.get("test_assertions_extracted"))

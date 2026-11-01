@@ -17,6 +17,9 @@ attestation is not independent proof of
 reviewer access: pointer retrieval, content delivery and receipt still need
 their own verified transport contract before promotion. The checker does not
 replace the existing review wrapper or establish a complete review gate.
+Until a trusted receipt verifier is integrated, the CLI has no path to assert
+verified receipt and therefore returns `insufficient_evidence` for any
+otherwise no-block result. Explicit blocks remain blocks.
 
 Custom output schemas validate the normalized result; they cannot bypass the
 evidence or route policy. Schemas requiring a raw-model-only shape fail closed
