@@ -97,12 +97,42 @@ class ReviewWrapperTransportTests(unittest.TestCase):
             proc = subprocess.CompletedProcess(["checker"], 10, stdout="", stderr="context size exceeded")
             self.assertTrue(self.wrapper.is_context_failure(proc, Path(directory) / "missing"))
 
+    def test_oversized_error_is_not_retried_as_context_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            proc = subprocess.CompletedProcess(["checker"], 10, stdout="", stderr="context size exceeded" + "x" * 65536)
+            self.assertFalse(self.wrapper.is_context_failure(proc, Path(directory) / "missing"))
+
     def test_legacy_structured_handoff_is_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
             raw = Path(directory) / "raw.json"
             raw.write_text(json.dumps({"headers": {"X-Primus-Route": "cloud_required"}}))
             proc = subprocess.CompletedProcess(["checker"], 10, stdout="", stderr="")
             self.assertTrue(self.wrapper.cloud_handoff_required(proc, raw))
+
+    def test_wrapper_stops_all_lanes_on_router_handoff(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            packet_path, config_path, output_path = root / "packet.json", root / "config.json", root / "result.json"
+            packet_path.write_text(json.dumps(self.packet()))
+            config_path.write_text("{}")
+            error = {"error_type": "cloud_fallback_required", "router_action": "codex_handoff", "message": "context size exceeded"}
+            proc = subprocess.CompletedProcess(["fake-checker"], 10, stdout="", stderr=json.dumps(error))
+            argv = ["wrapper", "--local", "--disable-auto-superpowers", "--input", str(packet_path), "--config", str(config_path), "--output", str(output_path), "--raw-dir", str(root / "raw")]
+            with patch.object(sys, "argv", argv), \
+                 patch.object(self.wrapper, "ensure_temporary_evidence_pointer", side_effect=lambda packet, budget: packet), \
+                 patch.object(self.wrapper, "base_prompt_for_config", return_value=root / "prompt"), \
+                 patch.object(self.wrapper, "sdlc_lanes", return_value=[{"id": "first"}, {"id": "second"}]), \
+                 patch.object(self.wrapper, "lane_packets_for_budget", side_effect=lambda packet, *args, **kwargs: [packet]), \
+                 patch.object(self.wrapper, "checker_user_content_chars", return_value=1), \
+                 patch.object(self.wrapper, "verify_checker_payload"), \
+                 patch.object(self.wrapper, "lane_command", return_value=["fake-checker"]), \
+                 patch.object(self.wrapper, "child_mode_args", return_value=[]), \
+                 patch.object(self.wrapper.subprocess, "run", return_value=proc) as run:
+                self.assertEqual(self.wrapper.main(), 16)
+            self.assertEqual(run.call_count, 1)
+            result = json.loads(output_path.read_text())
+            self.assertEqual(result["router_action"], "codex_handoff")
+            self.assertEqual(json.loads(Path(result["diagnostic_path"]).read_text())["error_type"], "cloud_fallback_required")
 
     def packet(self) -> dict[str, object]:
         current = pointer()

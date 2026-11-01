@@ -2963,6 +2963,10 @@ def cloud_handoff_required(proc: subprocess.CompletedProcess[str], lane_raw: Pat
 def write_cloud_handoff(proc: subprocess.CompletedProcess[str], lane_raw: Path, output: Path, lane_id: str) -> bool:
     if not cloud_handoff_required(proc, lane_raw):
         return False
+    if not lane_raw.exists() and proc.stderr and len(proc.stderr.encode("utf-8")) <= 65536:
+        lane_raw.parent.mkdir(parents=True, exist_ok=True)
+        with lane_raw.open("x", encoding="utf-8") as handle:
+            handle.write(proc.stderr)
     write_json(output, {"artifact": "primus-review-handoff-v1", "status": "cloud_required",
                         "router_action": "codex_handoff", "lane_id": lane_id,
                         "diagnostic_path": str(lane_raw), "checker_exit_code": proc.returncode})
@@ -2972,6 +2976,13 @@ def write_cloud_handoff(proc: subprocess.CompletedProcess[str], lane_raw: Path, 
 
 def is_context_failure(proc: subprocess.CompletedProcess[str], lane_raw: Path) -> bool:
     if cloud_handoff_required(proc, lane_raw):
+        return False
+    if len((proc.stderr or "").encode("utf-8")) > 65536:
+        return False
+    try:
+        if lane_raw.exists() and lane_raw.stat().st_size > 65536:
+            return False
+    except OSError:
         return False
     haystack = proc.stderr or ""
     if lane_raw.exists():
