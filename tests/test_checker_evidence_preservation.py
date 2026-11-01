@@ -1,8 +1,10 @@
 import copy
 import importlib.machinery
 import importlib.util
+import io
 import json
 import sys
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -196,6 +198,39 @@ def test_router_length_recovery_invalidates_review_route(tmp_path, monkeypatch):
     result = json.loads(output_path.read_text())
     assert result["route_evidence"]["route_evidence_verified"] is False
     assert result["merge_decision"]["decision"] == "insufficient_evidence"
+
+
+def test_direct_cloud_mode_is_rejected_before_provider_access(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["checker", "--cloud", "--input", str(tmp_path / "missing.json")])
+    with pytest.raises(SystemExit) as exc:
+        checker.main()
+    assert exc.value.code == 2
+
+
+def test_http_transport_rejects_non_router_destination():
+    with pytest.raises(ValueError, match="local router chat endpoint"):
+        checker.http_json_with_headers("https://example.invalid/v1/chat/completions", {})
+
+
+def test_router_cloud_required_signal_is_preserved_without_direct_fallback(tmp_path, monkeypatch):
+    packet_path = tmp_path / "packet.json"
+    schema_path = tmp_path / "schema.json"
+    prompt_path = tmp_path / "prompt.md"
+    raw_path = tmp_path / "error.json"
+    packet_path.write_text(json.dumps(PACKET))
+    schema_path.write_text(json.dumps({"type": "object"}))
+    prompt_path.write_text("Review the supplied packet.")
+
+    def fake_router(url, payload, router_base, poll_seconds):
+        body = json.dumps({"error": {"type": "cloud_fallback_required", "message": "handoff required"}}).encode()
+        raise urllib.error.HTTPError(url, 503, "handoff", {"x-inference-cloud-required": "true", "x-inference-route": "cloud_required"}, io.BytesIO(body))
+
+    monkeypatch.setattr(checker, "local_http_json_with_evidence", fake_router)
+    monkeypatch.setattr(sys, "argv", ["checker", "--local", "--input", str(packet_path), "--raw-output", str(raw_path), "--schema-file", str(schema_path), "--prompt-file", str(prompt_path)])
+    assert checker.main() == 10
+    error = json.loads(raw_path.read_text())
+    assert error["error_type"] == "cloud_fallback_required"
+    assert error["headers"]["x-inference-cloud-required"] == "true"
 
 
 def test_criterion_whitespace_differences_do_not_change_identity():

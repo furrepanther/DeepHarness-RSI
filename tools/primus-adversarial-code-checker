@@ -35,8 +35,6 @@ except Exception as exc:  # pragma: no cover - environment check path
 
 DEFAULT_ROUTER_BASE = "http://127.0.0.1:11888/v1"
 DEFAULT_MODEL = "local-inference-11888"
-DEFAULT_CLOUD_ENV = Path("/usr/production/cloud.env")
-DEFAULT_POLICY = Path("/usr/production/brain/model_routing_policy.json")
 DEFAULT_PROMPT = Path("/usr/production/next-tasks/adversarial_code_checker_prompt_v2_draft.md")
 DEFAULT_SCHEMA = Path("/usr/production/next-tasks/adversarial_code_checker_result_schema_v1_draft.json")
 DEFAULT_MAX_PACKET_BYTES = 65536
@@ -557,6 +555,8 @@ def http_json_with_headers(
     payload: dict[str, Any],
     extra_headers: dict[str, str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str], bytes, bytes]:
+    if url != DEFAULT_ROUTER_BASE + "/chat/completions":
+        raise ValueError("review inference must use the local router chat endpoint")
     body = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode("utf-8")
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if extra_headers:
@@ -648,93 +648,6 @@ def write_raw_error(path: Path | None, error_report: dict[str, Any]) -> None:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(error_report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-
-def load_dotenv_file(path: Path) -> dict[str, str]:
-    if not path.exists():
-        return {}
-    values: dict[str, str] = {}
-    for raw_line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        values[key.strip()] = value.strip()
-    return values
-
-
-def load_review_cloud_config() -> dict[str, str]:
-    env_file = load_dotenv_file(DEFAULT_CLOUD_ENV)
-    policy = {}
-    try:
-        policy = load_json(DEFAULT_POLICY)
-    except Exception:
-        policy = {}
-    cloud_policy = policy.get("cloud_fallback") if isinstance(policy, dict) and isinstance(policy.get("cloud_fallback"), dict) else {}
-    def setting(name: str) -> str:
-        return str(os.getenv(name) or env_file.get(name) or "").strip()
-
-    base_url = (setting("PRIMUS_CLOUD_BASE_URL") or str(cloud_policy.get("base_url") or "")).rstrip("/")
-    parsed = urllib.parse.urlsplit(base_url)
-    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
-        raise RuntimeError("cloud configuration requires an HTTPS base URL without embedded credentials, query or fragment")
-    # Select a credential for this provider only. Never send an unrelated provider's key.
-    provider_keys = {
-        "generativelanguage.googleapis.com": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
-        "api.openai.com": ("OPENAI_API_KEY",),
-        "integrate.api.nvidia.com": ("NVIDIA_API_KEY",),
-    }
-    names = provider_keys.get(parsed.hostname, ())
-    env_generic_key = str(os.getenv("PRIMUS_CLOUD_API_KEY") or "").strip()
-    env_provider_key = next((str(os.getenv(k) or "").strip() for k in names if os.getenv(k)), "")
-    # A generic dotenv credential belongs only to the endpoint declared in that file.
-    file_generic_key = str(env_file.get("PRIMUS_CLOUD_API_KEY") or "").strip() if str(env_file.get("PRIMUS_CLOUD_BASE_URL") or "").rstrip("/") == base_url else ""
-    file_provider_key = next((str(env_file.get(k) or "").strip() for k in names if env_file.get(k)), "")
-    api_key = env_generic_key or env_provider_key or file_generic_key or file_provider_key
-    explicit_model = str(os.getenv("PRIMUS_REVIEW_CLOUD_MODEL") or os.getenv("PRIMUS_CLOUD_MODEL") or "").strip()
-    if not explicit_model and str(env_file.get("PRIMUS_CLOUD_BASE_URL") or "").rstrip("/") == base_url:
-        explicit_model = str(env_file.get("PRIMUS_REVIEW_CLOUD_MODEL") or env_file.get("PRIMUS_CLOUD_MODEL") or "").strip()
-    policy_base = str(cloud_policy.get("base_url") or "").rstrip("/")
-    # A provider override cannot accidentally inherit the old provider's model.
-    model = explicit_model or (str(cloud_policy.get("default_model") or "") if base_url == policy_base else "")
-    return {"api_key": api_key, "base_url": base_url, "model": model}
-
-
-def should_attempt_review_cloud_fallback(error_report: dict[str, Any], allow: bool) -> bool:
-    if not allow:
-        return False
-    status = str(error_report.get("status") or "")
-    if status in {"url_error", "timeout_error"}:
-        return True
-    error_type = str(error_report.get("error_type") or "")
-    fallback_reason = str(error_report.get("fallback_reason") or "")
-    router_action = str(error_report.get("router_action") or "")
-    message = str(error_report.get("message") or "")
-    haystack = " ".join([error_type, fallback_reason, router_action, message]).lower()
-    return any(term in haystack for term in (
-        "local_inference_transport_error",
-        "local_inference_repair_required",
-        "connecterror",
-        "all connection attempts failed",
-        "preserve_worker_transport_error",
-        "repair_required",
-        "worker_transport_error",
-    ))
-
-
-def attempt_review_cloud_fallback(
-    payload: dict[str, Any],
-) -> tuple[dict[str, Any], dict[str, str], bytes, bytes]:
-    config = load_review_cloud_config()
-    if not config["api_key"] or not config["base_url"] or not config["model"]:
-        raise RuntimeError("explicit cloud inference unavailable: configure matching PRIMUS_CLOUD_BASE_URL, PRIMUS_REVIEW_CLOUD_MODEL (or policy model), and provider API key")
-    cloud_payload = json.loads(json.dumps(payload, ensure_ascii=True))
-    cloud_payload["model"] = config["model"]
-    return http_json_with_headers(
-        config["base_url"].rstrip("/") + "/chat/completions",
-        cloud_payload,
-        {"Authorization": f"Bearer {config['api_key']}"},
-    )
 
 
 def _loads_checker_json(value: str) -> Any:
@@ -1576,7 +1489,7 @@ def main() -> int:
         help="optional schema for the model response; the normalized output still uses --schema-file",
     )
     parser.add_argument("--router-base-url", default=os.getenv("PRIMUS_INFERENCE_ROUTER_V1_URL", DEFAULT_ROUTER_BASE))
-    parser.add_argument("--model", help="local router model alias; cloud uses PRIMUS_REVIEW_CLOUD_MODEL / cloud configuration", default=os.getenv("PRIMUS_CHECKER_MODEL", DEFAULT_MODEL))
+    parser.add_argument("--model", help="local router model alias", default=os.getenv("PRIMUS_CHECKER_MODEL", DEFAULT_MODEL))
     parser.add_argument(
         "--evidence-poll-s",
         type=float,
@@ -1596,8 +1509,10 @@ def main() -> int:
     add_inference_mode(parser)
     args = parse_inference_args(parser)
 
+    if args.inference_mode == "cloud":
+        parser.error("direct cloud review is unavailable; route any cloud-required decision through the local router handoff")
     if args.allow_cloud_fallback_on_local_unavailable:
-        parser.error("--allow-cloud-fallback-on-local-unavailable is retired; choose -c/--cloud explicitly, or local-only (default)")
+        parser.error("--allow-cloud-fallback-on-local-unavailable is retired; use the local router handoff")
 
     args.router_base_url = normalize_router_base_url(str(args.router_base_url))
 
@@ -1646,30 +1561,26 @@ def main() -> int:
     url = args.router_base_url.rstrip("/") + "/chat/completions"
     started = time.time()
     request_body = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode("utf-8")
-    used_review_cloud_fallback = False
     try:
-        if args.inference_mode == "cloud":
-            response_json, headers, request_body, response_body = attempt_review_cloud_fallback(payload)
-            used_review_cloud_fallback = True
-        else:
-            while True:
-                try:
-                    response_json, headers, request_body, response_body = local_http_json_with_evidence(
-                        url,
-                        payload,
-                        args.router_base_url,
-                        args.evidence_poll_s,
-                    )
-                    break
-                except urllib.error.HTTPError as exc:
-                    if not http_error_is_queue_timeout(exc):
-                        raise
-                    print(
-                        "local router admitted the request race but returned its explicit queue-capacity timeout; "
-                        "rechecking evidence and retrying without a wall-clock cap",
-                        file=sys.stderr,
-                    )
-                    wait_for_local_capacity(args.router_base_url, args.evidence_poll_s)
+        while True:
+            try:
+                response_json, headers, request_body, response_body = local_http_json_with_evidence(
+                    url,
+                    payload,
+                    args.router_base_url,
+                    args.evidence_poll_s,
+                )
+                break
+            except urllib.error.HTTPError as exc:
+                if not http_error_is_queue_timeout(exc):
+                    raise
+                print(
+                    "local router admitted the request race but returned its explicit queue-capacity timeout; "
+                    "rechecking evidence and retrying without a wall-clock cap",
+                    file=sys.stderr,
+                )
+                exc.close()
+                wait_for_local_capacity(args.router_base_url, args.evidence_poll_s)
     except ReviewEvidenceFailure as exc:
         elapsed = time.time() - started
         error_report = {
@@ -1685,21 +1596,13 @@ def main() -> int:
         return 11
     except urllib.error.HTTPError as exc:
         elapsed = time.time() - started
-        error_report = explain_http_error(exc, request_body, elapsed)
-        if should_attempt_review_cloud_fallback(error_report, args.allow_cloud_fallback_on_local_unavailable):
-            try:
-                response_json, headers, request_body, response_body = attempt_review_cloud_fallback(payload)
-                used_review_cloud_fallback = True
-                elapsed = time.time() - started
-            except Exception as cloud_exc:
-                error_report["review_cloud_fallback_error"] = str(cloud_exc)
-                write_raw_error(args.raw_output, error_report)
-                print(json.dumps(error_report, ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)
-                return 10
-        else:
-            write_raw_error(args.raw_output, error_report)
-            print(json.dumps(error_report, ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)
-            return 10
+        try:
+            error_report = explain_http_error(exc, request_body, elapsed)
+        finally:
+            exc.close()
+        write_raw_error(args.raw_output, error_report)
+        print(json.dumps(error_report, ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)
+        return 10
     except urllib.error.URLError as exc:
         elapsed = time.time() - started
         error_report = {
@@ -1709,20 +1612,9 @@ def main() -> int:
             "request_hash": sha256_bytes(request_body),
             "elapsed_s": round(elapsed, 3),
         }
-        if should_attempt_review_cloud_fallback(error_report, args.allow_cloud_fallback_on_local_unavailable):
-            try:
-                response_json, headers, request_body, response_body = attempt_review_cloud_fallback(payload)
-                used_review_cloud_fallback = True
-                elapsed = time.time() - started
-            except Exception as cloud_exc:
-                error_report["review_cloud_fallback_error"] = str(cloud_exc)
-                write_raw_error(args.raw_output, error_report)
-                print(json.dumps(error_report, ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)
-                return 11
-        else:
-            write_raw_error(args.raw_output, error_report)
-            print(json.dumps(error_report, ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)
-            return 11
+        write_raw_error(args.raw_output, error_report)
+        print(json.dumps(error_report, ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)
+        return 11
     except TimeoutError as exc:
         elapsed = time.time() - started
         error_report = {
@@ -1732,20 +1624,9 @@ def main() -> int:
             "request_hash": sha256_bytes(request_body),
             "elapsed_s": round(elapsed, 3),
         }
-        if should_attempt_review_cloud_fallback(error_report, args.allow_cloud_fallback_on_local_unavailable):
-            try:
-                response_json, headers, request_body, response_body = attempt_review_cloud_fallback(payload)
-                used_review_cloud_fallback = True
-                elapsed = time.time() - started
-            except Exception as cloud_exc:
-                error_report["review_cloud_fallback_error"] = str(cloud_exc)
-                write_raw_error(args.raw_output, error_report)
-                print(json.dumps(error_report, ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)
-                return 11
-        else:
-            write_raw_error(args.raw_output, error_report)
-            print(json.dumps(error_report, ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)
-            return 11
+        write_raw_error(args.raw_output, error_report)
+        print(json.dumps(error_report, ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)
+        return 11
     except (ValueError, RuntimeError) as exc:
         elapsed = time.time() - started
         error_report = {
@@ -1817,49 +1698,30 @@ def main() -> int:
     }
     finish_reason = str(choice.get("finish_reason") or "")
     route = {
-        "router_url": args.router_base_url.rstrip("/") if not used_review_cloud_fallback else "explicit-cloud-review",
+        "router_url": args.router_base_url.rstrip("/"),
         "request_id": str(headers.get("x-request-id") or response_json.get("id") or "unknown"),
-        "route": (
-            "explicit_cloud_review"
-            if used_review_cloud_fallback
-            else str(headers.get("x-inference-route") or response_json.get("model") or args.model)
-        ),
-        "model_alias": args.model if not used_review_cloud_fallback else str(response_json.get("model") or load_review_cloud_config().get("model") or "review-cloud"),
-        "adapter_id": (
-            "explicit-cloud-review"
-            if used_review_cloud_fallback
-            else str(headers.get("x-inference-adapter-id") or "")
-        ),
-        "adapter_version": (
-            "checker-contract-v1"
-            if used_review_cloud_fallback
-            else str(headers.get("x-inference-adapter-version") or "")
-        ),
-        "direct_backend_used": used_review_cloud_fallback,
-        "cloud_used": used_review_cloud_fallback or str(headers.get("x-inference-cloud-required", "")).lower() == "true" or str(headers.get("x-inference-route", "")).lower() in {"cloud", "cloud_required"},
+        "route": str(headers.get("x-inference-route") or response_json.get("model") or args.model),
+        "model_alias": args.model,
+        "adapter_id": str(headers.get("x-inference-adapter-id") or ""),
+        "adapter_version": str(headers.get("x-inference-adapter-version") or ""),
+        "direct_backend_used": False,
+        "cloud_used": str(headers.get("x-inference-cloud-required", "")).lower() == "true" or str(headers.get("x-inference-route", "")).lower() in {"cloud", "cloud_required"},
         "truncated": finish_reason in {"length", "content_filter"},
         "timed_out": False,
         "request_hash": sha256_bytes(request_body),
         "response_hash": sha256_bytes(response_body),
-        "evidence_ref": (
-            f"explicit-cloud-review:{utc_now()}:elapsed={elapsed:.3f}s:finish={finish_reason}"
-            if used_review_cloud_fallback
-            else f"local-router:{utc_now()}:elapsed={elapsed:.3f}s:finish={finish_reason}"
-        ),
+        "evidence_ref": f"local-router:{utc_now()}:elapsed={elapsed:.3f}s:finish={finish_reason}",
     }
     route_header = str(headers.get("x-inference-route") or "").lower()
-    route["route_header_consistent"] = used_review_cloud_fallback or route_header in {"worker", "local", "worker_error"}
-    route["adapter_identity_verified"] = (
-        used_review_cloud_fallback
-        or local_router_adapter_identity_is_valid(route["adapter_id"], route["adapter_version"])
-    )
+    route["route_header_consistent"] = route_header in {"worker", "local", "worker_error"}
+    route["adapter_identity_verified"] = local_router_adapter_identity_is_valid(route["adapter_id"], route["adapter_version"])
     # A recovered/synthesized answer may come from a different prompt; the
     # initial request hash does not attest the evidence that generation saw.
     length_recovered = str(headers.get("x-inference-length-management-recovered", "")).strip().lower() == "true"
-    route["route_evidence_verified"] = (used_review_cloud_fallback or local_router_route_evidence_is_valid(route)) and not length_recovered
+    route["route_evidence_verified"] = local_router_route_evidence_is_valid(route) and not length_recovered
     route["model_had_merge_decision"] = model_had_merge_decision
     invalid_route = (
-        (route.get("cloud_used") or route.get("direct_backend_used")) and args.inference_mode != "cloud"
+        route.get("cloud_used") or route.get("direct_backend_used")
         or route.get("truncated")
         or route.get("timed_out")
         or not route.get("route_evidence_verified")

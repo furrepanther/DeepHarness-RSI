@@ -29,3 +29,8 @@ Router length-recovery responses are not accepted as verified review routes:
 the final generation may have used a different prompt, and the initial request
 hash does not attest its evidence. This guard does not itself prove receipt for
 ordinary responses.
+
+The staged checker sends inference only to the loopback router. Direct cloud
+mode and the retired caller-side fallback are rejected. A router-provided
+cloud-required response remains visible as a handoff signal in the error
+artifact; this candidate does not itself execute that handoff.
