@@ -24,3 +24,8 @@ otherwise no-block result. Explicit blocks remain blocks.
 Custom output schemas validate the normalized result; they cannot bypass the
 evidence or route policy. Schemas requiring a raw-model-only shape fail closed
 until adapted to the normalized output contract.
+
+Router length-recovery responses are not accepted as verified review routes:
+the final generation may have used a different prompt, and the initial request
+hash does not attest its evidence. This guard does not itself prove receipt for
+ordinary responses.

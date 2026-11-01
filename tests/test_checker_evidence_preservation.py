@@ -176,6 +176,28 @@ def test_custom_output_schema_cannot_bypass_evidence_policy(tmp_path, monkeypatc
         assert not output_path.exists()
 
 
+def test_router_length_recovery_invalidates_review_route(tmp_path, monkeypatch):
+    packet_path = tmp_path / "packet.json"
+    schema_path = tmp_path / "schema.json"
+    prompt_path = tmp_path / "prompt.md"
+    output_path = tmp_path / "result.json"
+    packet_path.write_text(json.dumps(PACKET))
+    schema_path.write_text(json.dumps({"type": "object"}))
+    prompt_path.write_text("Review the supplied packet.")
+
+    def fake_router(url, payload, router_base, poll_seconds):
+        response = {"id": "fixture-request", "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(model())}}]}
+        headers = {"x-inference-route": "worker", "x-inference-adapter-id": "primus-inference-router", "x-inference-adapter-version": "router-contract-v1", "x-inference-length-management-recovered": "true"}
+        return response, headers, json.dumps(payload).encode(), json.dumps(response).encode()
+
+    monkeypatch.setattr(checker, "local_http_json_with_evidence", fake_router)
+    monkeypatch.setattr(sys, "argv", ["checker", "--local", "--input", str(packet_path), "--output", str(output_path), "--schema-file", str(schema_path), "--prompt-file", str(prompt_path)])
+    assert checker.main() == 15
+    result = json.loads(output_path.read_text())
+    assert result["route_evidence"]["route_evidence_verified"] is False
+    assert result["merge_decision"]["decision"] == "insufficient_evidence"
+
+
 def test_criterion_whitespace_differences_do_not_change_identity():
     value = model()
     value["requirements_extracted"][0]["requirement"] = "First\n  criterion"

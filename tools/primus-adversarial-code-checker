@@ -1853,7 +1853,10 @@ def main() -> int:
         used_review_cloud_fallback
         or local_router_adapter_identity_is_valid(route["adapter_id"], route["adapter_version"])
     )
-    route["route_evidence_verified"] = used_review_cloud_fallback or local_router_route_evidence_is_valid(route)
+    # A recovered/synthesized answer may come from a different prompt; the
+    # initial request hash does not attest the evidence that generation saw.
+    length_recovered = str(headers.get("x-inference-length-management-recovered", "")).strip().lower() == "true"
+    route["route_evidence_verified"] = (used_review_cloud_fallback or local_router_route_evidence_is_valid(route)) and not length_recovered
     route["model_had_merge_decision"] = model_had_merge_decision
     invalid_route = (
         (route.get("cloud_used") or route.get("direct_backend_used")) and args.inference_mode != "cloud"
