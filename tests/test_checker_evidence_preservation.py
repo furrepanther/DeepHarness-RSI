@@ -38,8 +38,8 @@ def model(decision="no_blocking_defect_found"):
         ],
         "adversarial_checks_performed": {"why_no_block_is_justified": "fixture justification"},
         "materials_reviewed": [
-            {"id": "implementation", "type": "diff", "status": "fully_reviewed"},
-            {"id": "tests", "type": "test", "status": "fully_reviewed"},
+            {"id": "DIFF_OR_FILES", "type": "diff", "status": "fully_reviewed"},
+            {"id": "TESTS", "type": "test", "status": "fully_reviewed"},
         ],
         "findings": [],
     }
@@ -109,6 +109,24 @@ def test_inaccessible_material_does_not_erase_a_blocking_finding():
     value = model("block")
     value["materials_reviewed"][0]["status"] = "inaccessible"
     value["findings"] = [{"severity": "High", "blocking": True, "description": "fixture defect"}]
+    assert decide(value) == "block"
+
+
+def test_unrelated_full_attestations_do_not_cover_required_sections():
+    value = model()
+    value["materials_reviewed"][0]["id"] = "unrelated"
+    assert decide(value) == "insufficient_evidence"
+
+
+def test_duplicate_required_attestation_is_not_accepted():
+    value = model()
+    value["materials_reviewed"].append(copy.deepcopy(value["materials_reviewed"][0]))
+    assert decide(value) == "insufficient_evidence"
+
+
+def test_model_block_is_not_downgraded_for_nonblocking_findings():
+    value = model("block")
+    value["findings"] = [{"severity": "Low", "blocking": False, "description": "fixture observation"}]
     assert decide(value) == "block"
 
 

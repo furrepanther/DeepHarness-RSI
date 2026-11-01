@@ -10,8 +10,10 @@ remain open.
 
 The staged evidence gate rejects a no-block result when the reviewer reports
 inaccessible, missing, partial, or truncated material, or fails to attest both
-implementation and test material. Packet presence alone no longer scaffolds a
-fully-reviewed status. A model's attestation is not independent proof of
+implementation and test material using the unique section IDs `DIFF_OR_FILES`
+and `TESTS`. Packet presence alone no longer scaffolds a fully-reviewed status,
+and an explicit reviewer block is not downgraded to no-block. A model's
+attestation is not independent proof of
 reviewer access: pointer retrieval, content delivery and receipt still need
 their own verified transport contract before promotion. The checker does not
 replace the existing review wrapper or establish a complete review gate.
