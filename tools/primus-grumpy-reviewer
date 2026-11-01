@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""Portable Grumpy final-review launcher for the personal harness fork."""
+
+from __future__ import annotations
+
+import argparse
+import os
+from pathlib import Path
+
+
+def _validate_bundled_inference_helper() -> Path:
+    """Fail clearly when the portable runner helper is missing or incomplete."""
+    helper = Path(__file__).resolve().with_name("primus_inference_mode.py")
+    if not helper.is_file():
+        raise SystemExit(f"missing bundled inference helper: {helper}")
+    try:
+        source = helper.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise SystemExit(f"cannot read bundled inference helper {helper}: {exc}") from exc
+    required_markers = ("def add_inference_mode(", "def child_mode_args(", "def parse_inference_args(")
+    missing = [marker for marker in required_markers if marker not in source]
+    if missing:
+        raise SystemExit(
+            f"bundled inference helper {helper} is incomplete; missing {', '.join(missing)}"
+        )
+    return helper
+
+
+_BUNDLED_INFERENCE_HELPER = _validate_bundled_inference_helper()
+
+from primus_inference_mode import add_inference_mode, child_mode_args, parse_inference_args
+
+
+RUNTIME_ROOT = Path(os.getenv("PRIMUS_REVIEW_RUNTIME_ROOT", "/usr/production"))
+BUNDLED_CHECKER = Path(__file__).resolve().with_name("primus-adversarial-code-checker")
+CHECKER = Path(
+    os.getenv(
+        "PRIMUS_REVIEW_CHECKER",
+        str(BUNDLED_CHECKER if BUNDLED_CHECKER.is_file() else RUNTIME_ROOT / "primus-adversarial-code-checker"),
+    )
+)
+PROMPT = Path(
+    os.getenv(
+        "PRIMUS_REVIEW_GRUMPY_PROMPT",
+        str(RUNTIME_ROOT / "next-tasks" / "grumpy_reviewer_compact_prompt_v1.md"),
+    )
+)
+RESPONSE_SCHEMA = Path(
+    os.getenv(
+        "PRIMUS_REVIEW_GRUMPY_SCHEMA",
+        str(RUNTIME_ROOT / "next-tasks" / "grumpy_compact_response_schema_v1.json"),
+    )
+)
+CHECKER_SCHEMA = Path(
+    os.getenv(
+        "PRIMUS_REVIEW_CHECKER_SCHEMA",
+        str(RUNTIME_ROOT / "next-tasks" / "adversarial_code_checker_result_schema_v1_draft.json"),
+    )
+)
+DEFAULT_GRUMPY_MODEL = os.getenv("PRIMUS_GRUMPY_MODEL", "local-inference-11888")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run Grumpy through the local inference router")
+    parser.add_argument("--input", required=True, type=Path)
+    parser.add_argument("--probe-review-payload", action="store_true")
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--raw-output", type=Path)
+    parser.add_argument(
+        "--evidence-poll-s",
+        type=float,
+        default=2.0,
+        help="runtime evidence observation interval; this is not a job deadline",
+    )
+    parser.add_argument("--max-tokens", type=int, default=4096)
+    parser.add_argument("--max-review-chars", type=int, default=5000)
+    parser.add_argument("--response-schema-file", type=Path, default=RESPONSE_SCHEMA)
+    parser.add_argument(
+        "--model",
+        default=os.getenv("PRIMUS_GRUMPY_MODEL", os.getenv("PRIMUS_CHECKER_MODEL", DEFAULT_GRUMPY_MODEL)),
+    )
+    add_inference_mode(parser)
+    args = parse_inference_args(parser)
+
+    argv = [
+        str(CHECKER),
+        "--input",
+        str(args.input),
+        "--prompt-file",
+        str(PROMPT),
+        "--evidence-poll-s",
+        str(args.evidence_poll_s),
+        "--max-tokens",
+        str(args.max_tokens),
+        "--max-review-chars",
+        str(args.max_review_chars),
+        "--response-schema-file",
+        str(args.response_schema_file),
+        "--schema-file",
+        str(CHECKER_SCHEMA),
+        "--model",
+        args.model,
+    ]
+    argv.extend(child_mode_args(args))
+    if args.probe_review_payload:
+        argv.append("--probe-review-payload")
+    if args.output:
+        argv.extend(["--output", str(args.output)])
+    if args.raw_output:
+        argv.extend(["--raw-output", str(args.raw_output)])
+    os.execv(str(CHECKER), argv)
+
+
+if __name__ == "__main__":
+    main()

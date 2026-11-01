@@ -8,6 +8,13 @@ candidate retains Primus-specific paths and requires `jsonschema` at runtime;
 its integration, portable configuration, dependencies, and complete review
 remain open.
 
+The general review wrapper and Grumpy launcher are also staged from that
+personal worktree. A structured router cloud-required response stops the
+staged wrapper with exit code 16 and a `codex_handoff` result, before any
+context retry or later lane. It does not invoke cloud inference; a parent must
+handle the result. Full wrapper integration and receipt verification remain
+unreviewed and are not production-ready.
+
 The staged evidence gate rejects a no-block result when the reviewer reports
 inaccessible, missing, partial, or truncated material, or fails to attest both
 implementation and test material using the unique section IDs `DIFF_OR_FILES`
