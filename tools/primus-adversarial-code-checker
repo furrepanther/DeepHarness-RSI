@@ -959,13 +959,14 @@ def normalize_prompt_injections(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
     normalized = []
-    for item in value[:10]:
+    for item in value:
         if not isinstance(item, dict):
             item = {"observed_text_or_summary": str(item)}
         summary = str(item.get("observed_text_or_summary") or item.get("summary") or item.get("text") or "")
         source = str(item.get("source") or "reviewed artifact")
         if summary:
-            normalized.append({"source": source, "observed_text_or_summary": summary, "ignored": True})
+            normalized.append({"source": source, "observed_text_or_summary": summary,
+                               "ignored": item.get("ignored") is True})
     return normalized
 
 
@@ -978,7 +979,7 @@ def detect_prompt_injections(packet: dict[str, Any], findings: list[dict[str, An
             detected.append({
                 "source": source,
                 "observed_text_or_summary": "artifact contains text resembling reviewer/system instructions",
-                "ignored": True,
+                "ignored": False,
             })
     if not detected:
         for finding in findings:
@@ -987,10 +988,10 @@ def detect_prompt_injections(packet: dict[str, Any], findings: list[dict[str, An
                 detected.append({
                     "source": "model finding",
                     "observed_text_or_summary": "model finding described artifact-contained reviewer/system instruction",
-                    "ignored": True,
+                    "ignored": False,
                 })
                 break
-    return detected[:5]
+    return detected
 
 
 def normalize_test_gaps(value: Any) -> list[dict[str, Any]]:

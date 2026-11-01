@@ -159,6 +159,18 @@ def test_blocking_test_gap_precludes_clean_decision_and_is_not_truncated():
     assert result["test_assertion_gaps"][-1]["blocking"] is True
 
 
+def test_reported_instruction_observations_are_not_discarded_or_claimed_ignored():
+    value = model()
+    value["prompt_injection_attempts"] = [
+        {"source": "fixture", "observed_text_or_summary": f"Observation {i}", "ignored": False}
+        for i in range(11)
+    ]
+    result = checker.coerce_result(value, packet=copy.deepcopy(PACKET), packet_id="fixture", packet_hash="fixture",
+                                   route=copy.deepcopy(ROUTE), finish_reason="stop", reviewer_receipt_verified=True)
+    assert len(result["prompt_injection_attempts"]) == 11
+    assert all(item["ignored"] is False for item in result["prompt_injection_attempts"])
+
+
 @pytest.mark.parametrize("receipt", [False, None, 1, "true"])
 def test_no_block_requires_explicit_verified_reviewer_receipt(receipt):
     result = checker.coerce_result(
