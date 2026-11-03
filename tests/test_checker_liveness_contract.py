@@ -62,6 +62,7 @@ class CheckerLivenessContractTests(unittest.TestCase):
     def test_checker_bundle_bootstraps_without_ambient_pythonpath(self) -> None:
         runtime_files = (
             "primus-adversarial-code-checker",
+            "primus-grumpy-reviewer",
             "primus_inference_mode.py",
             "review_packet_identity.py",
         )
@@ -81,6 +82,43 @@ class CheckerLivenessContractTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Run Primus adversarial code checker through local inference router", result.stdout)
+
+    def test_grumpy_bundle_rejects_explicit_and_inherited_cloud_mode(self) -> None:
+        runtime_files = (
+            "primus-adversarial-code-checker",
+            "primus-grumpy-reviewer",
+            "primus_inference_mode.py",
+            "review_packet_identity.py",
+        )
+        variants = ((["--cloud"], None), ([], "cloud"))
+        with tempfile.TemporaryDirectory() as directory:
+            runtime_root = Path(directory)
+            for name in runtime_files:
+                shutil.copy2(TOOLS / name, runtime_root / name)
+            for arguments, inherited_mode in variants:
+                with self.subTest(arguments=arguments, inherited_mode=inherited_mode):
+                    environment = dict(os.environ)
+                    environment.pop("PYTHONPATH", None)
+                    if inherited_mode is None:
+                        environment.pop("PRIMUS_INFERENCE_MODE", None)
+                    else:
+                        environment["PRIMUS_INFERENCE_MODE"] = inherited_mode
+                    result = subprocess.run(
+                        [
+                            sys.executable,
+                            "-B",
+                            str(runtime_root / "primus-grumpy-reviewer"),
+                            *arguments,
+                            "--input",
+                            str(runtime_root / "unused.json"),
+                        ],
+                        capture_output=True,
+                        check=False,
+                        env=environment,
+                        text=True,
+                    )
+                    self.assertEqual(result.returncode, 2)
+                    self.assertIn("must be local for review workers", result.stderr)
 
     def test_live_request_is_not_abandoned_while_router_queue_evidence_exists(self) -> None:
         baseline = evidence()
