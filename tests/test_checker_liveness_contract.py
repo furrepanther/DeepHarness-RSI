@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
+import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
+import tempfile
 import threading
 import unittest
 from unittest.mock import patch
@@ -55,6 +59,29 @@ def evidence(*, active_global: int = 0, queued_global: int = 0) -> dict[str, obj
 
 
 class CheckerLivenessContractTests(unittest.TestCase):
+    def test_checker_bundle_bootstraps_without_ambient_pythonpath(self) -> None:
+        runtime_files = (
+            "primus-adversarial-code-checker",
+            "primus_inference_mode.py",
+            "review_packet_identity.py",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            runtime_root = Path(directory)
+            for name in runtime_files:
+                shutil.copy2(TOOLS / name, runtime_root / name)
+            environment = dict(os.environ)
+            environment.pop("PYTHONPATH", None)
+            result = subprocess.run(
+                [sys.executable, "-B", str(runtime_root / "primus-adversarial-code-checker"), "--help"],
+                capture_output=True,
+                check=False,
+                env=environment,
+                text=True,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Run Primus adversarial code checker through local inference router", result.stdout)
+
     def test_live_request_is_not_abandoned_while_router_queue_evidence_exists(self) -> None:
         baseline = evidence()
         queued = evidence(active_global=1, queued_global=1)
