@@ -29,8 +29,39 @@ loader.exec_module(checker)
 
 def evidence(*, active_global: int = 0, queued_global: int = 0) -> dict[str, object]:
     """Return the smallest complete evidence shape needed by the liveness guard."""
+    headers = {
+        "x-inference-local-only": "true",
+        "x-inference-adapter-id": checker.EXPECTED_LOCAL_ROUTER_ADAPTER_ID,
+        "x-inference-adapter-version": checker.EXPECTED_LOCAL_ROUTER_ADAPTER_VERSION,
+    }
     return {
         "health_ok": True,
+        "local_agent_route_ok": True,
+        "local_agent_preflight": {
+            "health": {
+                "ok": True,
+                "status": 200,
+                "headers": headers,
+                "payload": {"status": "ok", "local_only": True},
+            },
+            "model_check": {
+                "ok": True,
+                "status": 200,
+                "headers": headers,
+                "payload": {
+                    "status": "ok",
+                    "local_only": True,
+                    "cloud_fallback_allowed": False,
+                    "route_mode": "local_agent_fail_loud",
+                    "generation_probe": "disabled_by_model_registry",
+                    "generation_ready": None,
+                    "worker_model": checker.DEFAULT_MODEL,
+                    "physical_worker_model": checker.EXPECTED_PHYSICAL_WORKER_MODEL,
+                    "upstream_status": 200,
+                },
+            },
+            "verified": True,
+        },
         "queue_ok": True,
         "slots_ok": True,
         "metrics_ok": True,
@@ -148,9 +179,9 @@ class CheckerLivenessContractTests(unittest.TestCase):
         ):
             try:
                 response, _, _, _ = checker.local_http_json_with_evidence(
-                    "http://127.0.0.1:11888/v1/chat/completions",
+                    checker.DEFAULT_ROUTER_BASE + "/chat/completions",
                     {"fixture": True},
-                    "http://127.0.0.1:11888/v1",
+                    checker.DEFAULT_ROUTER_BASE,
                     0.001,
                 )
             finally:
@@ -177,9 +208,9 @@ class CheckerLivenessContractTests(unittest.TestCase):
             try:
                 with self.assertRaises(checker.ReviewEvidenceFailure) as raised:
                     checker.local_http_json_with_evidence(
-                        "http://127.0.0.1:11888/v1/chat/completions",
+                        checker.DEFAULT_ROUTER_BASE + "/chat/completions",
                         {"fixture": True},
-                        "http://127.0.0.1:11888/v1",
+                        checker.DEFAULT_ROUTER_BASE,
                         0.001,
                     )
             finally:

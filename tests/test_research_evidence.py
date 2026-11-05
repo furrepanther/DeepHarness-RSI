@@ -23,6 +23,7 @@ EXPECTED_REPORTS = {
 SUPPORTING_EVIDENCE = {
     "20261026-upstream-head-refresh.md",
     "20261026-agent-research-dispatch.md",
+    "source-faithful-synthesis-20261025.md",
 }
 DISPATCH_REPORT = "20261026-agent-research-dispatch.md"
 MAX_REPORT_BYTES = 64_000

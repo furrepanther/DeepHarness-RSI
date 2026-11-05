@@ -243,7 +243,12 @@ def test_custom_output_schema_cannot_bypass_evidence_policy(tmp_path, monkeypatc
 
     def fake_router(url, payload, router_base, poll_seconds):
         response = {"id": "fixture-request", "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(value)}}]}
-        headers = {"x-inference-route": "worker", "x-inference-adapter-id": "primus-inference-router", "x-inference-adapter-version": "router-contract-v1"}
+        headers = {
+            "x-inference-route": "worker",
+            "x-inference-local-only": "true",
+            "x-inference-adapter-id": "primus-inference-router",
+            "x-inference-adapter-version": "router-contract-v1",
+        }
         return response, headers, json.dumps(payload).encode(), json.dumps(response).encode()
 
     monkeypatch.setattr(checker, "local_http_json_with_evidence", fake_router)
@@ -266,7 +271,13 @@ def test_router_length_recovery_invalidates_review_route(tmp_path, monkeypatch):
 
     def fake_router(url, payload, router_base, poll_seconds):
         response = {"id": "fixture-request", "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(model())}}]}
-        headers = {"x-inference-route": "worker", "x-inference-adapter-id": "primus-inference-router", "x-inference-adapter-version": "router-contract-v1", "x-inference-length-management-recovered": "true"}
+        headers = {
+            "x-inference-route": "worker",
+            "x-inference-local-only": "true",
+            "x-inference-adapter-id": "primus-inference-router",
+            "x-inference-adapter-version": "router-contract-v1",
+            "x-inference-length-management-recovered": "true",
+        }
         return response, headers, json.dumps(payload).encode(), json.dumps(response).encode()
 
     monkeypatch.setattr(checker, "local_http_json_with_evidence", fake_router)

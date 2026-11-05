@@ -77,6 +77,38 @@ class ReviewWrapperTransportTests(unittest.TestCase):
         cls.wrapper = load_wrapper()
         cls.checker = load_checker()
 
+    def valid_local_agent_preflight(self) -> dict[str, object]:
+        headers = {
+            "x-inference-local-only": "true",
+            "x-inference-adapter-id": self.checker.EXPECTED_LOCAL_ROUTER_ADAPTER_ID,
+            "x-inference-adapter-version": self.checker.EXPECTED_LOCAL_ROUTER_ADAPTER_VERSION,
+        }
+        return {
+            "health": {
+                "ok": True,
+                "status": 200,
+                "headers": headers,
+                "payload": {"status": "ok", "local_only": True},
+            },
+            "model_check": {
+                "ok": True,
+                "status": 200,
+                "headers": headers,
+                "payload": {
+                    "status": "ok",
+                    "local_only": True,
+                    "cloud_fallback_allowed": False,
+                    "route_mode": "local_agent_fail_loud",
+                    "generation_probe": "disabled_by_model_registry",
+                    "generation_ready": None,
+                    "worker_model": self.checker.DEFAULT_MODEL,
+                    "physical_worker_model": self.checker.EXPECTED_PHYSICAL_WORKER_MODEL,
+                    "upstream_status": 200,
+                },
+            },
+            "verified": True,
+        }
+
     def test_inaccessible_material_cannot_produce_no_block(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "result.json"
@@ -553,8 +585,16 @@ class ReviewWrapperTransportTests(unittest.TestCase):
             "complete_evidence_index=yes",
         ):
             self.assertIn(marker, wrapper_source)
-        for marker in ("wait_for_local_capacity", "queue_ok"):
+        for marker in (
+            "wait_for_local_capacity",
+            "queue_ok",
+            "verify_local_agent_preflight",
+            "/local-agent/internal/model-check",
+            "local_agent_route_unverified",
+        ):
             self.assertIn(marker, checker_source)
+        self.assertIn("--router-base-url", wrapper_source)
+        self.assertIn("local_agent_child_environment", wrapper_source)
         self.assertIn("--schema-file", grumpy_source)
         for marker in (
             "test_pointer_verification_rejects_unverified_pointer",
@@ -580,6 +620,7 @@ class ReviewWrapperTransportTests(unittest.TestCase):
             "evidence_ref": "local-router:test",
             "route_header_consistent": True,
             "adapter_identity_verified": True,
+            "local_only_verified": True,
             "route_evidence_verified": True,
             "model_had_merge_decision": True,
         }
@@ -750,9 +791,111 @@ class ReviewWrapperTransportTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, f"failed {field} verification"):
                     self.wrapper.verify_temporary_evidence_pointer(candidate)
 
+    def test_router_url_requires_exact_local_agent_path(self) -> None:
+        self.assertEqual(
+            self.checker.normalize_router_base_url(self.checker.DEFAULT_ROUTER_BASE),
+            self.checker.DEFAULT_ROUTER_BASE,
+        )
+        for invalid in (
+            "http://127.0.0.1:11888/v1",
+            "http://127.0.0.1:11888",
+            "https://127.0.0.1:11888/local-agent/v1",
+            "http://localhost:11888/local-agent/v1",
+            "http://127.0.0.1:11888/local-agent/v1?route=cloud",
+        ):
+            with self.subTest(url=invalid), self.assertRaises(SystemExit):
+                self.checker.normalize_router_base_url(invalid)
+
+        self.assertEqual(
+            self.checker.normalize_model_alias(self.checker.DEFAULT_MODEL),
+            self.checker.DEFAULT_MODEL,
+        )
+        with self.assertRaises(SystemExit):
+            self.checker.normalize_model_alias("Qwen3.5-9B-Q4_K_M.gguf")
+
+    def test_local_agent_preflight_requires_exact_local_only_contract(self) -> None:
+        expected = self.valid_local_agent_preflight()
+        health = expected["health"]
+        model_check = expected["model_check"]
+        assert isinstance(health, dict)
+        assert isinstance(model_check, dict)
+        with patch.object(self.checker, "_probe_local_json", side_effect=[health, model_check]) as probe:
+            evidence = self.checker.verify_local_agent_preflight(self.checker.DEFAULT_ROUTER_BASE)
+        self.assertTrue(evidence["verified"])
+        self.assertEqual(
+            [call.args[0] for call in probe.call_args_list],
+            [
+                self.checker.DEFAULT_ROUTER_BASE + "/health",
+                self.checker.DEFAULT_MODEL_CHECK_URL,
+            ],
+        )
+        self.assertEqual(
+            probe.call_args_list[1].kwargs,
+            {
+                "method": "POST",
+                "payload": {"model": self.checker.DEFAULT_MODEL, "kind": "chat"},
+            },
+        )
+
+        invalid_model_check = json.loads(json.dumps(model_check))
+        invalid_model_check["payload"]["cloud_fallback_allowed"] = True
+        with patch.object(self.checker, "_probe_local_json", side_effect=[health, invalid_model_check]):
+            rejected = self.checker.verify_local_agent_preflight(self.checker.DEFAULT_ROUTER_BASE)
+        self.assertFalse(rejected["verified"])
+
+        invalid_health = json.loads(json.dumps(health))
+        invalid_health["headers"]["x-inference-local-only"] = "false"
+        with patch.object(self.checker, "_probe_local_json", side_effect=[invalid_health, model_check]):
+            rejected = self.checker.verify_local_agent_preflight(self.checker.DEFAULT_ROUTER_BASE)
+        self.assertFalse(rejected["verified"])
+
+        wrong_worker = json.loads(json.dumps(model_check))
+        wrong_worker["payload"]["physical_worker_model"] = "Qwen3.5-9B-Q4_K_M.gguf"
+        with patch.object(self.checker, "_probe_local_json", side_effect=[health, wrong_worker]):
+            rejected = self.checker.verify_local_agent_preflight(self.checker.DEFAULT_ROUTER_BASE)
+        self.assertFalse(rejected["verified"])
+
+    def test_local_agent_probe_preserves_http_failure_without_headers(self) -> None:
+        error = urllib.error.HTTPError(
+            self.checker.DEFAULT_MODEL_CHECK_URL,
+            503,
+            "Service Unavailable",
+            None,
+            io.BytesIO(b'{"detail":"not ready"}'),
+        )
+        with patch.object(self.checker.urllib.request, "build_opener") as build_opener:
+            build_opener.return_value.open.side_effect = error
+            evidence = self.checker._probe_local_json(self.checker.DEFAULT_MODEL_CHECK_URL)
+        self.assertFalse(evidence["ok"])
+        self.assertEqual(evidence["status"], 503)
+        self.assertEqual(evidence["headers"], {})
+        self.assertEqual(evidence["payload"], {"detail": "not ready"})
+
+    def test_capacity_wait_fails_closed_when_local_agent_route_is_unverified(self) -> None:
+        unrouted = {
+            "health_ok": True,
+            "local_agent_route_ok": False,
+            "local_agent_preflight": {"verified": False},
+            "queue_ok": True,
+            "slots_ok": True,
+            "metrics_ok": False,
+            "resident_slots": 4,
+            "user_max_in_flight": 4,
+            "active_global": 0,
+            "active_user": 0,
+            "queued_global": 0,
+            "queued_user": 0,
+        }
+        with patch.object(self.checker, "collect_review_evidence", return_value=unrouted):
+            with self.assertRaises(self.checker.ReviewEvidenceFailure) as raised:
+                self.checker.wait_for_local_capacity(self.checker.DEFAULT_ROUTER_BASE, 0.01)
+        self.assertEqual(raised.exception.reason, "local_agent_route_unverified")
+
     def test_capacity_wait_uses_queue_evidence_and_returns_when_admitted(self) -> None:
         full = {
             "health_ok": True,
+            "local_agent_route_ok": True,
+            "local_agent_preflight": self.valid_local_agent_preflight(),
             "queue_ok": True,
             "slots_ok": True,
             "metrics_ok": False,
@@ -767,13 +910,15 @@ class ReviewWrapperTransportTests(unittest.TestCase):
         with patch.object(self.checker, "collect_review_evidence", side_effect=[full, available]), patch.object(
             self.checker.time, "sleep"
         ) as sleep:
-            admitted = self.checker.wait_for_local_capacity("http://127.0.0.1:11888/v1", 0.25)
+            admitted = self.checker.wait_for_local_capacity(self.checker.DEFAULT_ROUTER_BASE, 0.25)
         self.assertEqual(admitted["active_global"], 0)
         sleep.assert_called_once_with(0.25)
 
     def test_capacity_wait_fails_closed_when_queue_evidence_stays_missing(self) -> None:
         missing = {
             "health_ok": True,
+            "local_agent_route_ok": True,
+            "local_agent_preflight": self.valid_local_agent_preflight(),
             "queue_ok": False,
             "slots_ok": True,
             "metrics_ok": False,
@@ -788,7 +933,7 @@ class ReviewWrapperTransportTests(unittest.TestCase):
             self.checker.time, "sleep"
         ):
             with self.assertRaises(self.checker.ReviewEvidenceFailure) as raised:
-                self.checker.wait_for_local_capacity("http://127.0.0.1:11888/v1", 0.01)
+                self.checker.wait_for_local_capacity(self.checker.DEFAULT_ROUTER_BASE, 0.01)
         self.assertEqual(raised.exception.reason, "capacity_evidence_unavailable")
 
     def test_queue_timeout_detection_restores_bounded_error_body(self) -> None:
@@ -1148,6 +1293,25 @@ class ReviewWrapperTransportTests(unittest.TestCase):
             )
         schema_index = command.index("--schema-file")
         self.assertEqual(command[schema_index + 1], str(expected_schema))
+        router_index = command.index("--router-base-url")
+        self.assertEqual(command[router_index + 1], self.wrapper.DEFAULT_LOCAL_AGENT_V1_URL)
+
+    def test_review_children_receive_canonical_local_agent_environment(self) -> None:
+        with patch.dict(
+            self.wrapper.os.environ,
+            {
+                "PRIMUS_LOCAL_AGENT_V1_URL": "http://127.0.0.1:11888/v1",
+                "PRIMUS_INFERENCE_ROUTER_V1_URL": "http://127.0.0.1:11888/v1",
+                "PRIMUS_CHECKER_MODEL": "Qwen3.5-9B-Q4_K_M.gguf",
+                "PRIMUS_GRUMPY_MODEL": "Qwen3.5-9B-Q4_K_M.gguf",
+            },
+            clear=False,
+        ):
+            environment = self.wrapper.local_agent_child_environment()
+        self.assertEqual(environment["PRIMUS_LOCAL_AGENT_V1_URL"], self.wrapper.DEFAULT_LOCAL_AGENT_V1_URL)
+        self.assertEqual(environment["PRIMUS_INFERENCE_ROUTER_V1_URL"], self.wrapper.DEFAULT_LOCAL_AGENT_V1_URL)
+        self.assertEqual(environment["PRIMUS_CHECKER_MODEL"], self.wrapper.DEFAULT_GRUMPY_MODEL)
+        self.assertEqual(environment["PRIMUS_GRUMPY_MODEL"], self.wrapper.DEFAULT_GRUMPY_MODEL)
 
     def test_explicit_base_prompt_override_precedes_copied_config_path(self) -> None:
         with patch.dict(
@@ -1181,6 +1345,7 @@ class ReviewWrapperTransportTests(unittest.TestCase):
         gateway_purge = "2026-11-03T00:00:00Z"
         with (
             patch.object(self.wrapper, "_find_temporary_evidence_by_packet", return_value=None),
+            patch.object(self.wrapper, "wait_for_common_mcp_ready"),
             patch.object(
                 self.wrapper,
                 "_write_temporary_evidence_via_async_mcp",
