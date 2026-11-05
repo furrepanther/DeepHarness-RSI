@@ -1,5 +1,7 @@
 """Regression checks for the DeepHarness-RSI authoring and push boundary."""
 
+import hashlib
+import json
 from pathlib import Path
 import unittest
 
@@ -26,6 +28,28 @@ class RepositoryPolicyTests(unittest.TestCase):
         self.assertIn("must never push automatically", readme)
         self.assertIn("explicitly requests or approves", provenance)
         self.assertIn("never authorize an automatic", provenance)
+
+    def test_portable_review_runtime_bundle_is_tracked_and_complete(self) -> None:
+        bundle = ROOT / "runtime_bundle"
+        manifest = json.loads(
+            (bundle / "review_runtime_bundle_manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest["schema_version"], 1)
+        self.assertTrue(manifest["artifacts"])
+        for artifact in manifest["artifacts"]:
+            path = bundle / artifact["path"]
+            self.assertTrue(path.is_file(), path)
+            self.assertEqual(
+                hashlib.sha256(path.read_bytes()).hexdigest(), artifact["sha256"], path
+            )
+        config = json.loads(
+            (bundle / "next-tasks" / "qwen3_checker_agentic_reviewers_v0_1.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertIn("/local-agent/v1", config["router_contract"])
+        client_source = bundle / "lib" / "common_mcp_client.py"
+        compile(client_source.read_text(encoding="utf-8"), str(client_source), "exec")
 
 
 if __name__ == "__main__":

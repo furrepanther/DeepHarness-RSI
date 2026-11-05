@@ -31,7 +31,14 @@ _BUNDLED_INFERENCE_HELPER = _validate_bundled_inference_helper()
 from primus_inference_mode import add_inference_mode, child_mode_args, parse_inference_args
 
 
-RUNTIME_ROOT = Path(os.getenv("PRIMUS_REVIEW_RUNTIME_ROOT", "/usr/production"))
+TOOLS_ROOT = Path(__file__).resolve().parent
+BUNDLED_RUNTIME_ROOT = TOOLS_ROOT.parent / "runtime_bundle"
+RUNTIME_ROOT = Path(
+    os.getenv(
+        "PRIMUS_REVIEW_RUNTIME_ROOT",
+        str(BUNDLED_RUNTIME_ROOT if BUNDLED_RUNTIME_ROOT.is_dir() else "/usr/production"),
+    )
+)
 BUNDLED_CHECKER = Path(__file__).resolve().with_name("primus-adversarial-code-checker")
 CHECKER = Path(
     os.getenv(

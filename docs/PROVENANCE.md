@@ -35,6 +35,8 @@ tokens, prompts, hidden reasoning, raw logs, or private host configuration.
 - the bounded, public-safe source-analysis snapshots and upstream-head
   observation in `docs/research/`; and
 - the gated implementation sequence in `docs/IMPLEMENTATION-ROADMAP.md`.
+- the manifest-verified, static local-review runtime dependencies in
+  `runtime_bundle/`.
 
 The repository currently contains design and research artifacts, not a claim
 that a production runtime has been implemented. When code is added, its
@@ -68,8 +70,11 @@ databases, credentials, model files, or runtime state.
 
 ## Current boundary
 
-No runtime source was copied into this repository during the research phase.
-That is deliberate: the source substrate remains in its personal fork until
-the first DeepHarness-RSI integration slice has a defined ownership boundary,
-tests, review packet, and rollback plan. This repository is nevertheless the
-authoritative backup for the durable design and research work already done.
+`runtime_bundle/` is the first integrated DeepHarness-RSI runtime slice. It
+contains only reviewed, static review-gate assets with a digest manifest; it
+does not contain a production service, database, model, credential, temporary
+review packet, raw model output, or host-specific configuration. The broader
+source substrate remains in its personal lineage fork until each additional
+slice has a defined ownership boundary, tests, review packet, and rollback
+plan. This repository remains the authoritative backup for the durable design,
+research, and integrated portable-review source.

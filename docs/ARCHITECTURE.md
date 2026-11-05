@@ -97,6 +97,13 @@ work orders and the established control transport; filesystem sharing is not
 treated as the control plane. A peer can advise or review, but it cannot
 silently edit the other system's production source.
 
+The local review wrapper carries its static runtime dependencies in the
+source-controlled `runtime_bundle/`, verified against its SHA-256 manifest.
+It resolves enabled `shared-github://` reviewer cards only through
+`/mnt/linuxdata/Github` on Datacube or `/linuxdata/Github` on Primus. Missing,
+non-canonical, or path-escaping cards fail closed; they cannot silently reduce
+the enabled review coverage.
+
 ## Non-negotiable promotion evidence
 
 Every implementation checkpoint must prove source provenance, local-router

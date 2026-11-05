@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "purpose": "Source-controlled runtime dependencies required to execute the portable local-only review gate.",
+  "artifacts": [
+    {"path": "lib/common_mcp_client.py", "sha256": "1ff4f436ae8caa71a0d57d8393d213dcfcb516a364352c39f840b8d39d806024"},
+    {"path": "next-tasks/adversarial_code_checker_compact_retry_prompt_v1.md", "sha256": "5580a3566a923c2ddffa0580e4f670bc69adbae604fe2dfdc6ae8f0046c574c7"},
+    {"path": "next-tasks/adversarial_code_checker_compact_retry_schema_v1.json", "sha256": "0c11b1295523dc13eb24e92dab39ae0e9ef11a766ceae5eb7286311fb339b61b"},
+    {"path": "next-tasks/adversarial_code_checker_prompt_v2_draft.md", "sha256": "c52b49ce84aff43306c52d3873f49df7986ebb646be72ccc53d7f6234a145e7a"},
+    {"path": "next-tasks/adversarial_code_checker_result_schema_v1_draft.json", "sha256": "0bf5ce1e6960d1f179fb56d9fb40fbc09636464aba466be48d5f93759e3e6b2e"},
+    {"path": "next-tasks/grumpy_compact_response_schema_v1.json", "sha256": "6afa18e8390c1ba8c1c8b4b087ade4bebcfe6d68d9a865c5b05454771a233636"},
+    {"path": "next-tasks/grumpy_reviewer_compact_prompt_v1.md", "sha256": "17a04bf825d5dea79922fd1044fc6793e683b2ba8f0d534da2bf80bbd7e4016a"},
+    {"path": "next-tasks/inline_code_documenter_prompt_v0_1.md", "sha256": "4edf11dbddc47b8ea42e94ee5a069b0d57f125e90921cd9882b4bd11e4abf949"},
+    {"path": "next-tasks/inline_code_documenter_result_schema_v0_1.json", "sha256": "f225203fc12c8b4a64d856b88e35def7fb1b2b0c3fb99ff6ca777d5320e46840"},
+    {"path": "next-tasks/qwen3_checker_agentic_reviewers_v0_1.json", "sha256": "59e4e203bb02f8f646469bf94a2e8f28b6fea519606cfb4c5380f8f2f9b403e6"}
+  ]
+}

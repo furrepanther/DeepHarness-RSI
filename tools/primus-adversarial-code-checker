@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import argparse
 from primus_inference_mode import add_inference_mode, child_mode_args, parse_inference_args
-from review_packet_identity import packet_identity
+from review_packet_identity import packet_identity, verify_runtime_bundle
 import datetime as dt
 import hashlib
 import io
@@ -38,8 +38,15 @@ DEFAULT_ROUTER_BASE = DEFAULT_ROUTER_ORIGIN + "/local-agent/v1"
 DEFAULT_MODEL_CHECK_URL = DEFAULT_ROUTER_ORIGIN + "/local-agent/internal/model-check"
 DEFAULT_MODEL = "local-inference-11888"
 EXPECTED_PHYSICAL_WORKER_MODEL = "Qwen3.8-27B-Turbo-Brilliance-50X-RI-NEO-MAX-MTP-IQ4_XS.gguf"
-DEFAULT_PROMPT = Path("/usr/production/next-tasks/adversarial_code_checker_prompt_v2_draft.md")
-DEFAULT_SCHEMA = Path("/usr/production/next-tasks/adversarial_code_checker_result_schema_v1_draft.json")
+BUNDLED_RUNTIME_ROOT = Path(__file__).resolve().parents[1] / "runtime_bundle"
+RUNTIME_ROOT = Path(
+    os.getenv(
+        "PRIMUS_REVIEW_RUNTIME_ROOT",
+        str(BUNDLED_RUNTIME_ROOT if BUNDLED_RUNTIME_ROOT.is_dir() else "/usr/production"),
+    )
+)
+DEFAULT_PROMPT = RUNTIME_ROOT / "next-tasks" / "adversarial_code_checker_prompt_v2_draft.md"
+DEFAULT_SCHEMA = RUNTIME_ROOT / "next-tasks" / "adversarial_code_checker_result_schema_v1_draft.json"
 DEFAULT_MAX_PACKET_BYTES = 65536
 DEFAULT_MAX_REVIEW_CHARS = 12000
 DEFAULT_MAX_TOKENS = 4096
@@ -1578,6 +1585,7 @@ def main() -> int:
 
     args.router_base_url = normalize_router_base_url(str(args.router_base_url))
     args.model = normalize_model_alias(str(args.model))
+    verify_runtime_bundle(RUNTIME_ROOT)
 
     input_size = args.input.stat().st_size
     if args.max_packet_bytes > DEFAULT_MAX_PACKET_BYTES:

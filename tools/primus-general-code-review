@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 import uuid
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 
@@ -48,10 +48,21 @@ if str(_BUNDLED_INFERENCE_HELPER.parent) not in sys.path:
     sys.path.insert(0, str(_BUNDLED_INFERENCE_HELPER.parent))
 
 from primus_inference_mode import add_inference_mode, child_mode_args, parse_inference_args
-from review_packet_identity import packet_identity, pointer_transport_status
+from review_packet_identity import (
+    packet_identity,
+    pointer_transport_status,
+    verify_runtime_bundle,
+)
 
 
-RUNTIME_ROOT = Path(os.getenv("PRIMUS_REVIEW_RUNTIME_ROOT", "/usr/production"))
+TOOLS_ROOT = Path(__file__).resolve().parent
+BUNDLED_RUNTIME_ROOT = TOOLS_ROOT.parent / "runtime_bundle"
+RUNTIME_ROOT = Path(
+    os.getenv(
+        "PRIMUS_REVIEW_RUNTIME_ROOT",
+        str(BUNDLED_RUNTIME_ROOT if BUNDLED_RUNTIME_ROOT.is_dir() else "/usr/production"),
+    )
+)
 NEXT_TASKS_ROOT = RUNTIME_ROOT / "next-tasks"
 LIB_ROOT = Path(os.getenv("PRIMUS_REVIEW_LIB_ROOT", str(RUNTIME_ROOT / "lib")))
 MEMORY_API_URL = os.getenv("PRIMUS_REVIEW_MEMORY_API_URL", "http://127.0.0.1:18001")
@@ -63,6 +74,7 @@ DEFAULT_CONFIG = Path(
     )
 )
 BUNDLED_CHECKER = Path(__file__).resolve().with_name("primus-adversarial-code-checker")
+BUNDLED_GRUMPY = Path(__file__).resolve().with_name("primus-grumpy-reviewer")
 DEFAULT_CHECKER = Path(
     os.getenv(
         "PRIMUS_REVIEW_CHECKER",
@@ -70,7 +82,10 @@ DEFAULT_CHECKER = Path(
     )
 )
 DEFAULT_GRUMPY = Path(
-    os.getenv("PRIMUS_REVIEW_GRUMPY", str(RUNTIME_ROOT / "primus-grumpy-reviewer"))
+    os.getenv(
+        "PRIMUS_REVIEW_GRUMPY",
+        str(BUNDLED_GRUMPY if BUNDLED_GRUMPY.is_file() else RUNTIME_ROOT / "primus-grumpy-reviewer"),
+    )
 )
 DEFAULT_GRUMPY_RESPONSE_SCHEMA = Path(
     os.getenv(
@@ -131,7 +146,51 @@ def base_prompt_for_config(config: dict[str, Any]) -> Path:
         or config.get("base_prompt")
         or str(NEXT_TASKS_ROOT / "adversarial_code_checker_prompt_v2_draft.md")
     )
-    return Path(str(configured))
+    path = Path(str(configured))
+    return path if path.is_absolute() else RUNTIME_ROOT / path
+
+
+def _canonical_shared_github_root() -> Path:
+    """Return the host's one reviewed source root for shared reviewer cards."""
+    host = os.uname().nodename.lower()
+    if host.startswith("datacube"):
+        expected = Path("/mnt/linuxdata/Github")
+    elif host.startswith("primus"):
+        expected = Path("/linuxdata/Github")
+    else:
+        raise RuntimeError(f"unsupported review host for shared reviewer cards: {host}")
+    override = os.getenv("PRIMUS_REVIEW_SHARED_GITHUB_ROOT", "").strip()
+    if override and Path(override).resolve() != expected.resolve():
+        raise RuntimeError(
+            "reviewer-card root drift: PRIMUS_REVIEW_SHARED_GITHUB_ROOT must "
+            f"resolve to {expected}"
+        )
+    if not expected.is_dir():
+        raise RuntimeError(f"canonical shared reviewer-card root is unavailable: {expected}")
+    return expected
+
+
+def resolve_profile_source(source: str) -> Path:
+    """Resolve a reviewer card from the shared source tree without path escape."""
+    if not source.startswith("shared-github://"):
+        path = Path(source)
+        if not path.is_file():
+            raise RuntimeError(f"reviewer card is unavailable: {source}")
+        return path
+    relative = source.removeprefix("shared-github://")
+    parts = PurePosixPath(relative).parts
+    if not parts or any(part in {"", ".", "..", "/"} for part in parts):
+        raise ValueError(f"invalid shared reviewer-card path: {source}")
+    root = _canonical_shared_github_root().resolve()
+    path = root.joinpath(*parts)
+    try:
+        resolved = path.resolve()
+        resolved.relative_to(root)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ValueError(f"shared reviewer-card path escapes canonical root: {source}") from exc
+    if not resolved.is_file():
+        raise RuntimeError(f"shared reviewer card is unavailable: {source}")
+    return resolved
 
 
 DEFAULT_CHECKER_SCHEMA = Path(
@@ -2315,8 +2374,8 @@ def profile_text(lane: dict[str, Any], profile_char_budget: int) -> str:
         parts.append(f"Extra lane constraint: {instruction}")
     source = str(lane.get("source_agent_path") or "").strip()
     if source and not source.startswith("pending:"):
-        path = Path(source)
-        if path.exists() and profile_char_budget > 0:
+        path = resolve_profile_source(source)
+        if profile_char_budget > 0:
             limit = min(int(lane.get("max_profile_chars") or 3000), profile_char_budget)
             parts.append("Source reviewer card excerpt:")
             parts.append(path.read_text(encoding="utf-8", errors="replace")[:limit])
@@ -3291,6 +3350,7 @@ def main() -> int:
         parser.error("the Datacube review gate requires local-only inference")
     child_env = local_agent_child_environment()
 
+    verify_runtime_bundle(RUNTIME_ROOT)
     config = load_json(args.config)
     original = load_json(args.input)
     if not isinstance(original, dict):

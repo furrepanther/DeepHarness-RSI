@@ -3,6 +3,42 @@
 import copy
 import hashlib
 import json
+from pathlib import Path, PurePosixPath
+
+
+def verify_runtime_bundle(runtime_root: Path) -> None:
+    """Verify every declared static review asset before it influences a gate."""
+    root = Path(runtime_root).resolve()
+    manifest_path = root / "review_runtime_bundle_manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"review runtime bundle manifest is unavailable: {manifest_path}") from exc
+    if manifest.get("schema_version") != 1 or not isinstance(manifest.get("artifacts"), list):
+        raise RuntimeError("review runtime bundle manifest has an unsupported shape")
+    for artifact in manifest["artifacts"]:
+        if not isinstance(artifact, dict):
+            raise RuntimeError("review runtime bundle manifest has a non-object artifact")
+        relative = artifact.get("path")
+        expected = artifact.get("sha256")
+        if not isinstance(relative, str) or not isinstance(expected, str) or len(expected) != 64:
+            raise RuntimeError("review runtime bundle manifest has an invalid artifact entry")
+        parts = PurePosixPath(relative).parts
+        if not parts or any(part in {"", ".", "..", "/"} for part in parts):
+            raise RuntimeError(f"review runtime bundle artifact path is invalid: {relative}")
+        candidate = root.joinpath(*parts)
+        try:
+            resolved = candidate.resolve()
+            resolved.relative_to(root)
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise RuntimeError(
+                f"review runtime bundle artifact escapes its root: {relative}"
+            ) from exc
+        if not resolved.is_file():
+            raise RuntimeError(f"review runtime bundle artifact is unavailable: {relative}")
+        actual = hashlib.sha256(resolved.read_bytes()).hexdigest()
+        if actual != expected:
+            raise RuntimeError(f"review runtime bundle artifact digest mismatch: {relative}")
 
 
 def pointer_transport_status(pointer):

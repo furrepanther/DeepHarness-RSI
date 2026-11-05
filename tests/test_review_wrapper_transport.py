@@ -1324,6 +1324,103 @@ class ReviewWrapperTransportTests(unittest.TestCase):
             )
         self.assertEqual(resolved, Path("/tmp/datacube-review-runtime/prompt.md"))
 
+    def test_relative_config_prompt_is_rooted_at_the_selected_runtime_bundle(self) -> None:
+        runtime_root = ROOT / "runtime_bundle"
+        with patch.object(self.wrapper, "RUNTIME_ROOT", runtime_root):
+            resolved = self.wrapper.base_prompt_for_config(
+                {"base_prompt": "next-tasks/adversarial_code_checker_prompt_v2_draft.md"}
+            )
+        self.assertEqual(
+            resolved,
+            runtime_root / "next-tasks" / "adversarial_code_checker_prompt_v2_draft.md",
+        )
+        self.assertTrue(resolved.is_file())
+
+    def test_shared_reviewer_card_is_resolved_from_the_canonical_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            card = root / "example" / "agents" / "reviewer.md"
+            card.parent.mkdir(parents=True)
+            card.write_text("reviewer card", encoding="utf-8")
+            with patch.object(
+                self.wrapper,
+                "_canonical_shared_github_root",
+                return_value=root,
+            ):
+                resolved = self.wrapper.resolve_profile_source(
+                    "shared-github://example/agents/reviewer.md"
+                )
+                overlay = self.wrapper.profile_text(
+                    {
+                        "id": "fixture",
+                        "dimension": "test",
+                        "role_summary": "fixture role",
+                        "source_agent_path": "shared-github://example/agents/reviewer.md",
+                    },
+                    100,
+                )
+        self.assertEqual(resolved, card.resolve())
+        self.assertIn("reviewer card", overlay)
+
+    def test_shared_reviewer_card_path_escape_or_absence_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(
+                self.wrapper,
+                "_canonical_shared_github_root",
+                return_value=root,
+            ):
+                with self.assertRaises(ValueError):
+                    self.wrapper.resolve_profile_source(
+                        "shared-github://example/../outside.md"
+                    )
+                with self.assertRaises(RuntimeError):
+                    self.wrapper.resolve_profile_source(
+                        "shared-github://example/agents/missing.md"
+                    )
+
+    def test_enabled_bundle_reviewer_cards_resolve_from_the_shared_source_tree(self) -> None:
+        config_path = ROOT / "runtime_bundle" / "next-tasks" / "qwen3_checker_agentic_reviewers_v0_1.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        enabled_cards = [
+            lane["source_agent_path"]
+            for lane in config["lanes"]
+            if lane.get("status") == "enabled"
+            and str(lane.get("source_agent_path") or "").startswith("shared-github://")
+        ]
+        self.assertTrue(enabled_cards)
+        for source in enabled_cards:
+            with self.subTest(source=source):
+                self.assertTrue(self.wrapper.resolve_profile_source(source).is_file())
+
+    def test_runtime_bundle_manifest_is_checked_before_review_execution(self) -> None:
+        runtime_root = ROOT / "runtime_bundle"
+        self.assertEqual(self.wrapper.RUNTIME_ROOT, runtime_root)
+        self.assertEqual(self.checker.RUNTIME_ROOT, runtime_root)
+        self.assertTrue(self.wrapper.DEFAULT_CONFIG.is_file())
+        self.assertTrue(self.wrapper.DEFAULT_GRUMPY.is_file())
+        self.assertTrue(self.checker.DEFAULT_PROMPT.is_file())
+        self.assertTrue(self.checker.DEFAULT_SCHEMA.is_file())
+        self.wrapper.verify_runtime_bundle(runtime_root)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            asset = root / "next-tasks" / "asset.txt"
+            asset.parent.mkdir(parents=True)
+            asset.write_text("tampered", encoding="utf-8")
+            (root / "review_runtime_bundle_manifest.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "artifacts": [
+                            {"path": "next-tasks/asset.txt", "sha256": "0" * 64}
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "digest mismatch"):
+                self.wrapper.verify_runtime_bundle(root)
+
     def test_memory_store_idempotency_stays_in_metadata_contract(self) -> None:
         payload = self.wrapper._temporary_evidence_store_payload(
             content="bounded evidence",

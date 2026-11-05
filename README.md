@@ -64,6 +64,14 @@ than duplicated blindly into this repository; the exact analyzed revisions
 and the rule for bringing code into DeepHarness-RSI are recorded in
 [`docs/PROVENANCE.md`](docs/PROVENANCE.md).
 
+The portable, local-only review runtime is versioned in
+[`runtime_bundle/`](runtime_bundle/). Its manifest pins every prompt, schema,
+and local Memory Fabric client dependency by SHA-256. The bundle contains no
+credentials, runtime telemetry, review outputs, or production configuration.
+Enabled reviewer cards are resolved only from the canonical shared GitHub root
+on each host; a missing or escaping card path fails the gate rather than
+silently weakening a review lane.
+
 The durable research and design record is organized as follows:
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - Primus-native target

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://primus.local/schemas/grumpy-compact-response-v1.json",
+  "title": "Primus Grumpy compact model response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["findings", "merge_decision"],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "severity",
+          "location",
+          "blocking",
+          "observed_evidence",
+          "failure_scenario",
+          "required_fix"
+        ],
+        "properties": {
+          "severity": {"type": "string", "enum": ["Critical", "High", "Medium", "Low"]},
+          "location": {"type": "string", "maxLength": 160},
+          "blocking": {"type": "boolean"},
+          "observed_evidence": {"type": "string", "maxLength": 180},
+          "failure_scenario": {"type": "string", "maxLength": 180},
+          "required_fix": {"type": "string", "maxLength": 180}
+        }
+      }
+    },
+    "merge_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "reason", "confidence"],
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": ["block", "insufficient_evidence", "no_blocking_defect_found"]
+        },
+        "reason": {"type": "string", "maxLength": 180},
+        "confidence": {"type": "string", "enum": ["high", "medium", "low"]}
+      }
+    }
+  }
+}

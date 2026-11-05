@@ -1,0 +1,526 @@
+{
+  "$id": "https://primus.local/schemas/adversarial-code-checker-result-v1-draft.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptance_coverage": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage": {
+            "enum": [
+              "covered",
+              "weakly_covered",
+              "not_covered",
+              "unclear"
+            ]
+          },
+          "covered_by_tests": {
+            "items": {
+              "pattern": "^T[0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "gap": {
+            "type": "string"
+          },
+          "implementation_evidence": {
+            "type": "string"
+          },
+          "no_block_justification": {
+            "type": "string"
+          },
+          "requirement_id": {
+            "pattern": "^R[0-9]+$",
+            "type": "string"
+          },
+          "test_evidence": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requirement_id",
+          "covered_by_tests",
+          "coverage",
+          "implementation_evidence",
+          "test_evidence",
+          "gap",
+          "no_block_justification"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "adversarial_checks_performed": {
+      "additionalProperties": false,
+      "properties": {
+        "async_concurrency": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "config_default_path_changes": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "external_service_router_behavior": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "failure_paths": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "persistence_idempotence": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "prompt_injection_resistance": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "requirements_coverage": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "security_auth_policy_bypass": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "test_assertion_strength": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "truncation_missing_context_risk": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "why_no_block_is_justified": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirements_coverage",
+        "test_assertion_strength",
+        "failure_paths",
+        "async_concurrency",
+        "config_default_path_changes",
+        "security_auth_policy_bypass",
+        "persistence_idempotence",
+        "external_service_router_behavior",
+        "prompt_injection_resistance",
+        "truncation_missing_context_risk",
+        "why_no_block_is_justified"
+      ],
+      "type": "object"
+    },
+    "findings": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "blocking": {
+            "type": "boolean"
+          },
+          "failure_scenario": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^F[0-9]+$",
+            "type": "string"
+          },
+          "location": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "observed_evidence": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "required_fix": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "Critical",
+              "High",
+              "Medium",
+              "Low"
+            ]
+          },
+          "why_not_noise": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "location",
+          "blocking",
+          "observed_evidence",
+          "failure_scenario",
+          "why_not_noise",
+          "required_fix"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "materials_reviewed": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "fully_reviewed",
+              "partially_reviewed",
+              "missing",
+              "inaccessible",
+              "possibly_truncated"
+            ]
+          },
+          "type": {
+            "enum": [
+              "file",
+              "diff",
+              "test",
+              "log",
+              "requirement",
+              "artifact",
+              "prompt",
+              "route_evidence",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "notes"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "merge_decision": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "decision": {
+          "enum": [
+            "block",
+            "no_blocking_defect_found",
+            "insufficient_evidence"
+          ]
+        },
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "confidence",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "prompt_injection_attempts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "ignored": {
+            "const": true
+          },
+          "observed_text_or_summary": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "source": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "observed_text_or_summary",
+          "ignored"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "prompt_version": {
+      "const": "adversarial-code-checker-v2-draft"
+    },
+    "requirements_extracted": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^R[0-9]+$",
+            "type": "string"
+          },
+          "requirement": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "source": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "clear",
+              "ambiguous",
+              "missing_evidence"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "requirement",
+          "source",
+          "status"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "residual_risks": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "review_packet": {
+      "additionalProperties": false,
+      "properties": {
+        "base_revision": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "complete_packet": {
+          "type": "boolean"
+        },
+        "packet_hash": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "packet_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "provenance_verified": {
+          "type": "boolean"
+        },
+        "repo_or_scope": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "packet_id",
+        "packet_hash",
+        "repo_or_scope",
+        "base_revision",
+        "provenance_verified",
+        "complete_packet"
+      ],
+      "type": "object"
+    },
+    "route_evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "cloud_used": {
+          "type": "boolean"
+        },
+        "local_only": {
+          "type": "boolean"
+        },
+        "adapter_id": {
+          "type": "string"
+        },
+        "adapter_version": {
+          "type": "string"
+        },
+        "adapter_identity_verified": {
+          "type": "boolean"
+        },
+        "direct_backend_used": {
+          "type": "boolean"
+        },
+        "evidence_ref": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "model_alias": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "model_had_merge_decision": {
+          "type": "boolean"
+        },
+        "request_hash": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "request_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "response_hash": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "route": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "route_evidence_verified": {
+          "type": "boolean"
+        },
+        "route_header_consistent": {
+          "type": "boolean"
+        },
+        "router_url": {
+          "pattern": "^(http://127\\.0\\.0\\.1:11888(?:/(?:local-agent/)?v1)?|review-cloud-fallback|explicit-cloud-review)$",
+          "type": "string"
+        },
+        "timed_out": {
+          "type": "boolean"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "router_url",
+        "request_id",
+        "route",
+        "model_alias",
+        "direct_backend_used",
+        "cloud_used",
+        "local_only",
+        "truncated",
+        "timed_out",
+        "request_hash",
+        "response_hash",
+        "evidence_ref",
+        "route_evidence_verified",
+        "route_header_consistent",
+        "adapter_id",
+        "adapter_version",
+        "adapter_identity_verified",
+        "model_had_merge_decision"
+      ],
+      "type": "object"
+    },
+    "schema_version": {
+      "const": "adversarial-code-checker-result-v1-draft"
+    },
+    "test_assertion_gaps": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "blocking": {
+            "type": "boolean"
+          },
+          "gap": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "requirement_id": {
+            "pattern": "^R[0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requirement_id",
+          "gap",
+          "blocking"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "test_assertions_extracted": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "assertion": {
+            "type": "string"
+          },
+          "covers_requirements": {
+            "items": {
+              "pattern": "^R[0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "pattern": "^T[0-9]+$",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "strength": {
+            "enum": [
+              "strong",
+              "weak",
+              "missing",
+              "unclear"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "assertion",
+          "source",
+          "covers_requirements",
+          "strength"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "prompt_version",
+    "review_packet",
+    "route_evidence",
+    "materials_reviewed",
+    "requirements_extracted",
+    "test_assertions_extracted",
+    "acceptance_coverage",
+    "adversarial_checks_performed",
+    "prompt_injection_attempts",
+    "findings",
+    "test_assertion_gaps",
+    "merge_decision",
+    "residual_risks"
+  ],
+  "title": "Adversarial Code Checker Result v1 Draft",
+  "type": "object"
+}

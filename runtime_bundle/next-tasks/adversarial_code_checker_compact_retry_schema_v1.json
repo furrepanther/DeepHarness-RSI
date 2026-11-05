@@ -1,0 +1,39 @@
+{
+  "$id": "https://primus.local/schemas/adversarial-code-checker-compact-retry-v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["merge_decision", "findings", "residual_risks", "adversarial_checks_performed"],
+  "properties": {
+    "merge_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "reason", "confidence"],
+      "properties": {
+        "decision": {"type": "string", "enum": ["block", "insufficient_evidence", "no_blocking_defect_found"]},
+        "reason": {"type": "string", "maxLength": 280},
+        "confidence": {"type": "string", "enum": ["low", "medium", "high"]}
+      }
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "location", "blocking", "observed_evidence", "failure_scenario", "why_not_noise", "required_fix"],
+        "properties": {
+          "severity": {"type": "string", "enum": ["Critical", "High", "Medium", "Low"]},
+          "location": {"type": "string", "maxLength": 140},
+          "blocking": {"type": "boolean"},
+          "observed_evidence": {"type": "string", "maxLength": 280},
+          "failure_scenario": {"type": "string", "maxLength": 280},
+          "why_not_noise": {"type": "string", "maxLength": 180},
+          "required_fix": {"type": "string", "maxLength": 280}
+        }
+      }
+    },
+    "residual_risks": {"type": "array", "maxItems": 3, "items": {"type": "string", "maxLength": 220}},
+    "adversarial_checks_performed": {"type": "object", "additionalProperties": {"type": "string", "maxLength": 220}}
+  }
+}

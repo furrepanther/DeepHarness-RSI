@@ -1,0 +1,92 @@
+{
+  "artifact": "primus-agentic-code-checker-reviewers-v0.1",
+  "status": "draft-active",
+  "router_contract": "All runtime reviewer lanes use the wrapper-selected local-only checker through http://127.0.0.1:11888/local-agent/v1; ordinary /v1 auto-routing, cloud fallback, and direct-provider fallback are forbidden.",
+  "default_checker": "tools/primus-adversarial-code-checker",
+  "base_prompt": "next-tasks/adversarial_code_checker_prompt_v2_draft.md",
+  "lanes": [
+    {
+      "id": "grumpy_reviewer_gemma4",
+      "status": "disabled",
+      "kind": "router_runtime_single_agent",
+      "dimension": "combined_max_adversarial_code_review",
+      "role_summary": "Single router-worker-targeted reviewer prompt combining Gerald Thornton persona and local code/security/test/silent-failure/architecture reviewers, fronted by the deterministic fast prefilter.",
+      "source_agent_path": "",
+      "launcher": "",
+      "max_tokens": 4096
+    },
+    {
+      "id": "qwen3_primary_adversarial_checker",
+      "status": "enabled",
+      "kind": "router_runtime",
+      "dimension": "general_adversarial",
+      "role_summary": "Primary strict JSON adversarial code checker; blocks concrete critical/high defects and reports insufficient evidence for incomplete packets.",
+      "source_agent_path": "",
+      "max_tokens": 4096
+    },
+    {
+      "id": "official_pr_code_reviewer",
+      "status": "enabled",
+      "kind": "router_runtime_profile",
+      "dimension": "bug_quality_project_rules",
+      "role_summary": "Shared GitHub PR toolkit code-reviewer profile; high-confidence bugs, quality defects, and project-rule violations.",
+      "source_agent_path": "shared-github://claude-plugins-official/plugins/pr-review-toolkit/agents/code-reviewer.md",
+      "max_profile_chars": 3500,
+      "max_tokens": 4096
+    },
+    {
+      "id": "silent_failure_hunter",
+      "status": "enabled",
+      "kind": "router_runtime_profile",
+      "dimension": "silent_failures_error_handling_fallbacks",
+      "role_summary": "Shared GitHub silent-failure hunter profile; catches swallowed exceptions, bad fallbacks, and hidden failure paths.",
+      "source_agent_path": "shared-github://claude-plugins-official/plugins/pr-review-toolkit/agents/silent-failure-hunter.md",
+      "max_profile_chars": 3500,
+      "max_tokens": 4096
+    },
+    {
+      "id": "pr_test_analyzer",
+      "status": "enabled",
+      "kind": "router_runtime_profile",
+      "dimension": "test_assertion_quality",
+      "role_summary": "Shared GitHub PR test analyzer profile; focuses on behavioral test coverage, assertion strength, and missing negative cases.",
+      "source_agent_path": "shared-github://claude-plugins-official/plugins/pr-review-toolkit/agents/pr-test-analyzer.md",
+      "max_profile_chars": 3500,
+      "max_tokens": 4096
+    },
+    {
+      "id": "team_reviewer_testing",
+      "status": "enabled",
+      "kind": "router_runtime_profile",
+      "dimension": "testing_dimension_structured",
+      "role_summary": "Shared GitHub team-reviewer profile constrained to the testing dimension for structured review coverage.",
+      "source_agent_path": "shared-github://wshobson-agents/plugins/agent-teams/agents/team-reviewer.md",
+      "profile_instruction": "Operate only on the Testing dimension. Ignore accessibility/frontend-only checks unless the reviewed packet is frontend UI code.",
+      "max_profile_chars": 3500,
+      "max_tokens": 4096
+    },
+    {
+      "id": "superpowers_code_reviewer",
+      "status": "enabled",
+      "kind": "router_runtime_profile",
+      "dimension": "superpowers_code_review",
+      "role_summary": "Superpowers code-quality review lane. Enabled for additional reviewer perspective on code quality, maintainability, and structural clarity before merge.",
+      "source_agent_path": "shared-github://superpowers/skills/subagent-driven-development/code-quality-reviewer-prompt.md",
+      "profile_instruction": "Act as a Superpowers style reviewer check for code quality, maintainability, and structural clarity.",
+      "evidence_poll_s": 2.0,
+      "max_review_chars": 12000,
+      "max_profile_chars": 2500,
+      "allow_cloud_fallback_on_local_unavailable": false,
+      "max_tokens": 4096
+    },
+    {
+      "id": "gerald_datacube_code_reviewer",
+      "status": "pending_datacube_contract",
+      "kind": "remote_or_router_runtime_profile",
+      "dimension": "gerald_adversarial_software_review",
+      "role_summary": "Datacube Gerald software code reviewer lane requested from RoseStone; do not invoke until contract, resource needs, and routing behavior are known.",
+      "source_agent_path": "pending:RWO-20260604T172643Z-provide-gerald-reviewer-integration-b216b6",
+      "max_tokens": 768
+    }
+  ]
+}
