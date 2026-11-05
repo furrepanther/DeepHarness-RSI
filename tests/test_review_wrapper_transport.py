@@ -737,6 +737,43 @@ class ReviewWrapperTransportTests(unittest.TestCase):
         self.assertFalse(normalized["ready"])
         self.assertFalse(normalized["required_connected"])
 
+    def test_common_mcp_health_accepts_required_upstream_when_optional_ones_degrade(self) -> None:
+        payload = {
+            "status": "degraded",
+            "upstream_count": 15,
+            "connected_count": 8,
+            "backend_mcp_count": 15,
+            "backend_mcp_connected_count": 8,
+            "backend_error": "7 upstream(s) disconnected",
+            "upstreams": [
+                {"name": "other_upstream", "connected": False, "last_error": "offline"},
+                {"name": "antigravity_local", "connected": True, "last_error": None},
+            ],
+        }
+        normalized = self.wrapper.normalize_common_mcp_health(payload, status=200)
+        self.assertTrue(normalized["ok"])
+        self.assertTrue(normalized["ready"])
+        self.assertTrue(normalized["required_connected"])
+        self.assertEqual(normalized["upstream_error"], "")
+        self.assertEqual(normalized["optional_upstream_error"], "7 upstream(s) disconnected")
+
+    def test_common_mcp_health_rejects_required_upstream_error_despite_global_status(self) -> None:
+        payload = {
+            "status": "ok",
+            "upstreams": [
+                {
+                    "name": "antigravity_local",
+                    "connected": True,
+                    "last_error": "connection refused",
+                },
+            ],
+        }
+        normalized = self.wrapper.normalize_common_mcp_health(payload, status=200)
+        self.assertTrue(normalized["ok"])
+        self.assertFalse(normalized["ready"])
+        self.assertFalse(normalized["required_connected"])
+        self.assertEqual(normalized["upstream_error"], "connection refused")
+
     def test_complete_evidence_index_preserves_atomic_rows_and_full_digests(self) -> None:
         diff = {
             "changed_files": ["tools/a.py", "tests/test_a.py"],

@@ -1285,9 +1285,10 @@ def normalize_common_mcp_health(payload: dict[str, Any], *, status: int | None =
 
     Primus publishes explicit ``ready``/``required_connected`` fields. The
     Datacube gateway publishes an equivalent daemon summary with an
-    ``antigravity_local`` upstream row and connected counts. Accept the latter
-    only when that required upstream is explicitly connected and no backend
-    error is reported; never infer readiness from status alone.
+    ``antigravity_local`` upstream row. Accept the latter only when that
+    required upstream is explicitly connected. Other optional MCP upstreams
+    may be independently degraded; their aggregate daemon status must not
+    block the exact Memory Fabric dependency used by this gate.
     """
     if not isinstance(payload, dict):
         return {
@@ -1325,38 +1326,17 @@ def normalize_common_mcp_health(payload: dict[str, Any], *, status: int | None =
         required_connected = item.get("connected") is True and not item_error
         break
 
-    backend_error = payload.get("backend_error")
-    if backend_error:
-        upstream_error = str(backend_error)[:240]
-
-    def positive_int(name: str) -> int | None:
-        value = payload.get(name)
-        return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
-
-    upstream_count = positive_int("upstream_count")
-    connected_count = positive_int("connected_count")
-    backend_count = positive_int("backend_mcp_count")
-    backend_connected_count = positive_int("backend_mcp_connected_count")
-    counts_complete = (
-        upstream_count is not None
-        and connected_count is not None
-        and connected_count >= upstream_count
-        and (
-            backend_count is None
-            or (
-                backend_connected_count is not None
-                and backend_connected_count >= backend_count
-            )
-        )
-    )
-    gateway_ok = str(payload.get("status") or "").lower() in {"ok", "healthy"}
-    ready = gateway_ok and not backend_error and required_seen and required_connected and counts_complete
+    gateway_status = str(payload.get("status") or "").lower()
+    transport_ok = status == 200 if status is not None else gateway_status in {"ok", "healthy", "degraded"}
+    gateway_ok = transport_ok and gateway_status in {"ok", "healthy", "degraded"}
+    ready = gateway_ok and required_seen and required_connected
     return {
         "ok": status == 200 if status is not None else gateway_ok,
         "status": status,
         "ready": ready,
         "required_connected": ready,
         "upstream_error": upstream_error,
+        "optional_upstream_error": str(payload.get("backend_error") or "")[:240],
     }
 
 
